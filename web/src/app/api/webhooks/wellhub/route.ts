@@ -208,7 +208,7 @@ async function handleCheckin(payload: WellhubCheckinPayload, orgId: string) {
 }
 
 async function handleBooking(payload: WellhubBookingPayload, orgId: string) {
-  const { booking_number, user, class_datetime, status } = payload
+  const { booking_number, user, booking_datetime, status } = payload
 
   switch (status) {
     case 'booked':
@@ -225,7 +225,7 @@ async function handleBooking(payload: WellhubBookingPayload, orgId: string) {
       // Report class attendance to Wellhub
       await wellhubClient.reportClassAttendance(
         user.user_id,
-        class_datetime,
+        booking_datetime,
         payload.class_id
       )
       break
