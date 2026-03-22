@@ -1,31 +1,26 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
-  QrCode, Search, CheckCircle2, XCircle, Clock,
-  Coins, Sparkles, User, ArrowRight, Zap,
+  QrCode, Search, CheckCircle2, Clock,
+  Coins, Sparkles, User, Zap, Loader2, RefreshCw,
+  Camera, X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 
-interface CheckinStudent {
+interface CheckinItem {
   id: string
-  name: string
-  initials: string
-  booking: string
   time: string
+  student: string
+  studentId: string
   service: string
+  serviceColor: string
   coinsReward: number
-  status: 'waiting' | 'checked_in'
+  checkedIn: boolean
+  checkinMethod: string | null
+  source: string
 }
-
-const MOCK_STUDENTS: CheckinStudent[] = [
-  { id: '1', name: 'Ana Silva', initials: 'AS', booking: 'b1', time: '08:00', service: 'Personal Training', coinsReward: 2, status: 'checked_in' },
-  { id: '2', name: 'Carlos Mendes', initials: 'CM', booking: 'b2', time: '09:00', service: 'Personal Training', coinsReward: 2, status: 'waiting' },
-  { id: '3', name: 'Maria Oliveira', initials: 'MO', booking: 'b3', time: '10:00', service: 'Avaliacao Fisica', coinsReward: 3, status: 'waiting' },
-  { id: '4', name: 'Grupo A - Pedro', initials: 'PS', booking: 'b4', time: '11:00', service: 'Treino em Grupo', coinsReward: 1, status: 'waiting' },
-  { id: '5', name: 'Grupo A - Julia', initials: 'JC', booking: 'b4', time: '11:00', service: 'Treino em Grupo', coinsReward: 1, status: 'waiting' },
-  { id: '6', name: 'Grupo A - Rafael', initials: 'RL', booking: 'b4', time: '11:00', service: 'Treino em Grupo', coinsReward: 1, status: 'waiting' },
-]
 
 function CoinAnimation({ coins }: { coins: number }) {
   return (
@@ -42,65 +37,125 @@ function CoinAnimation({ coins }: { coins: number }) {
 }
 
 export default function CheckinPage() {
-  const [students, setStudents] = useState(MOCK_STUDENTS)
+  const [items, setItems] = useState<CheckinItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [processing, setProcessing] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [showCoinAnimation, setShowCoinAnimation] = useState<number | null>(null)
   const [mode, setMode] = useState<'list' | 'qr'>('list')
+  const [qrInput, setQrInput] = useState('')
+  const qrRef = useRef<HTMLInputElement>(null)
 
-  const filteredStudents = students.filter((s) =>
-    s.name.toLowerCase().includes(search.toLowerCase()) ||
-    s.service.toLowerCase().includes(search.toLowerCase())
-  )
+  const today = new Date().toISOString().split('T')[0]
 
-  const waitingCount = students.filter((s) => s.status === 'waiting').length
-  const checkedCount = students.filter((s) => s.status === 'checked_in').length
-
-  function handleCheckin(studentId: string) {
-    const student = students.find((s) => s.id === studentId)
-    if (!student || student.status === 'checked_in') return
-
-    // Show coin animation
-    setShowCoinAnimation(student.coinsReward)
-    setTimeout(() => setShowCoinAnimation(null), 2000)
-
-    // Update status
-    setStudents((prev) =>
-      prev.map((s) => (s.id === studentId ? { ...s, status: 'checked_in' as const } : s))
-    )
+  async function loadBookings() {
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/checkin?date=${today}`)
+      if (res.ok) setItems(await res.json())
+    } catch (e) {
+      toast.error('Erro ao carregar agendamentos')
+    } finally {
+      setLoading(false)
+    }
   }
+
+  useEffect(() => { loadBookings() }, [])
+
+  // Auto-focus QR input when in QR mode
+  useEffect(() => {
+    if (mode === 'qr') setTimeout(() => qrRef.current?.focus(), 100)
+  }, [mode])
+
+  async function doCheckin(bookingId: string, method: 'MANUAL' | 'QR_CODE' = 'MANUAL') {
+    if (processing) return
+    setProcessing(bookingId)
+    try {
+      const res = await fetch('/api/checkin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingId, method }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error || 'Erro ao registrar check-in')
+        return
+      }
+      // Show coin animation
+      if (data.coinsAwarded > 0) {
+        setShowCoinAnimation(data.coinsAwarded)
+        setTimeout(() => setShowCoinAnimation(null), 2200)
+      }
+      toast.success(`Check-in de ${data.studentName} — +${data.coinsAwarded} FitCoins!`)
+      // Update local state
+      setItems((prev) => prev.map((i) => i.id === bookingId ? { ...i, checkedIn: true, checkinMethod: method } : i))
+    } catch (e) {
+      toast.error('Erro de conexao')
+    } finally {
+      setProcessing(null)
+    }
+  }
+
+  // Handle QR code scan — the QR encodes the booking ID
+  function handleQrSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    const id = qrInput.trim()
+    if (!id) return
+    const item = items.find((i) => i.id === id || i.studentId === id)
+    if (!item) {
+      toast.error('QR Code nao reconhecido ou sem agendamento hoje')
+    } else if (item.checkedIn) {
+      toast.info(`${item.student} ja fez check-in`)
+    } else {
+      doCheckin(item.id, 'QR_CODE')
+    }
+    setQrInput('')
+    qrRef.current?.focus()
+  }
+
+  const filtered = items.filter((i) =>
+    i.student.toLowerCase().includes(search.toLowerCase()) ||
+    i.service.toLowerCase().includes(search.toLowerCase())
+  )
+  const waitingCount = items.filter((i) => !i.checkedIn).length
+  const checkedCount = items.filter((i) => i.checkedIn).length
 
   return (
     <div className="space-y-6">
-      {/* Coin animation overlay */}
       {showCoinAnimation !== null && <CoinAnimation coins={showCoinAnimation} />}
 
-      {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="font-display text-2xl font-bold text-gray-900">Check-in</h1>
           <p className="mt-1 text-sm text-gray-500">
-            {waitingCount} aguardando, {checkedCount} realizados
+            {loading ? 'Carregando...' : `${waitingCount} aguardando, ${checkedCount} realizados`}
           </p>
         </div>
-        <div className="flex rounded-xl border border-gray-300 overflow-hidden">
+        <div className="flex gap-2">
           <button
-            onClick={() => setMode('list')}
-            className={cn('flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all',
-              mode === 'list' ? 'bg-brand-600 text-white' : 'text-gray-600 hover:bg-gray-50'
-            )}
+            onClick={loadBookings}
+            className="flex items-center gap-2 rounded-xl border border-gray-300 px-3 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
           >
-            <User className="h-4 w-4" />
-            Lista
+            <RefreshCw className="h-4 w-4" />
           </button>
-          <button
-            onClick={() => setMode('qr')}
-            className={cn('flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all',
-              mode === 'qr' ? 'bg-brand-600 text-white' : 'text-gray-600 hover:bg-gray-50'
-            )}
-          >
-            <QrCode className="h-4 w-4" />
-            QR Code
-          </button>
+          <div className="flex rounded-xl border border-gray-300 overflow-hidden">
+            <button
+              onClick={() => setMode('list')}
+              className={cn('flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all',
+                mode === 'list' ? 'bg-brand-600 text-white' : 'text-gray-600 hover:bg-gray-50'
+              )}
+            >
+              <User className="h-4 w-4" /> Lista
+            </button>
+            <button
+              onClick={() => setMode('qr')}
+              className={cn('flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all',
+                mode === 'qr' ? 'bg-brand-600 text-white' : 'text-gray-600 hover:bg-gray-50'
+              )}
+            >
+              <QrCode className="h-4 w-4" /> QR Code
+            </button>
+          </div>
         </div>
       </div>
 
@@ -110,19 +165,25 @@ export default function CheckinPage() {
           <div className="mx-auto max-w-sm">
             <div className="mx-auto flex h-64 w-64 items-center justify-center rounded-2xl border-2 border-dashed border-brand-300 bg-brand-50">
               <div className="text-center">
-                <QrCode className="mx-auto h-16 w-16 text-brand-400" />
-                <p className="mt-3 text-sm font-medium text-brand-600">
-                  Camera ativa
-                </p>
-                <p className="mt-1 text-xs text-brand-400">
-                  Aponte o QR Code do aluno aqui
-                </p>
+                <Camera className="mx-auto h-16 w-16 text-brand-400" />
+                <p className="mt-3 text-sm font-medium text-brand-600">Aguardando QR Code</p>
+                <p className="mt-1 text-xs text-brand-400">Aponte a camera do leitor aqui</p>
               </div>
             </div>
-            <p className="mt-4 text-sm text-gray-500">
-              O aluno mostra o QR Code no app e voce escaneia para registrar a presenca.
-              As FitCoins sao creditadas automaticamente.
-            </p>
+            <form onSubmit={handleQrSubmit} className="mt-4">
+              <input
+                ref={qrRef}
+                type="text"
+                value={qrInput}
+                onChange={(e) => setQrInput(e.target.value)}
+                placeholder="Ou digite o ID do agendamento..."
+                className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
+                autoFocus
+              />
+              <p className="mt-3 text-xs text-gray-500">
+                O QR Code do aluno contém o ID do agendamento. O leitor de QR envia automaticamente.
+              </p>
+            </form>
           </div>
         </div>
       )}
@@ -130,7 +191,6 @@ export default function CheckinPage() {
       {/* List Mode */}
       {mode === 'list' && (
         <>
-          {/* Search */}
           <div className="relative">
             <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <input
@@ -142,75 +202,82 @@ export default function CheckinPage() {
             />
           </div>
 
-          {/* Student list */}
-          <div className="space-y-3">
-            {filteredStudents.map((student) => (
-              <div
-                key={student.id}
-                className={cn(
-                  'flex items-center gap-4 rounded-2xl border bg-white p-4 transition-all',
-                  student.status === 'checked_in'
-                    ? 'border-green-200 bg-green-50/50'
-                    : 'border-gray-200 hover:border-brand-200 hover:shadow-sm'
-                )}
-              >
-                {/* Avatar */}
-                <div className={cn(
-                  'flex h-12 w-12 items-center justify-center rounded-full text-sm font-bold',
-                  student.status === 'checked_in'
-                    ? 'bg-green-100 text-green-700'
-                    : 'bg-brand-100 text-brand-700'
-                )}>
-                  {student.status === 'checked_in' ? (
-                    <CheckCircle2 className="h-5 w-5" />
-                  ) : (
-                    student.initials
-                  )}
-                </div>
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-brand-600" />
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-gray-200 py-16 text-gray-400">
+              <CheckCircle2 className="h-12 w-12 mb-3 opacity-30" />
+              <p className="text-sm font-medium">Nenhum agendamento encontrado para hoje</p>
+              <p className="text-xs mt-1">Crie agendamentos na aba Agenda</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filtered.map((item) => {
+                const initials = item.student.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()
+                return (
+                  <div key={item.id}
+                    className={cn(
+                      'flex items-center gap-4 rounded-2xl border bg-white p-4 transition-all',
+                      item.checkedIn ? 'border-green-200 bg-green-50/50' : 'border-gray-200 hover:border-brand-200 hover:shadow-sm'
+                    )}
+                  >
+                    <div className={cn(
+                      'flex h-12 w-12 items-center justify-center rounded-full text-sm font-bold flex-shrink-0',
+                      item.checkedIn ? 'bg-green-100 text-green-700' : 'bg-brand-100 text-brand-700'
+                    )}>
+                      {item.checkedIn ? <CheckCircle2 className="h-5 w-5" /> : initials}
+                    </div>
 
-                {/* Info */}
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-gray-900">{student.name}</span>
-                    {student.status === 'checked_in' && (
-                      <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold text-green-700 uppercase">
-                        Presente
-                      </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-gray-900 truncate">{item.student}</span>
+                        {item.checkedIn && (
+                          <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold text-green-700 uppercase flex-shrink-0">
+                            Presente
+                          </span>
+                        )}
+                        {item.source === 'WHATSAPP' && (
+                          <span className="rounded-full bg-green-100 px-1.5 py-0.5 text-[9px] font-bold text-green-700 flex-shrink-0">WA</span>
+                        )}
+                      </div>
+                      <div className="mt-0.5 flex items-center gap-3 text-sm text-gray-500">
+                        <span className="flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {new Date(item.time).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                        <span className="truncate">{item.service}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1 rounded-full bg-yellow-100 px-2.5 py-1 flex-shrink-0">
+                      <Coins className="h-3.5 w-3.5 text-yellow-600" />
+                      <span className="text-xs font-bold text-yellow-700">+{item.coinsReward}</span>
+                    </div>
+
+                    {!item.checkedIn ? (
+                      <button
+                        onClick={() => doCheckin(item.id, 'MANUAL')}
+                        disabled={!!processing}
+                        className="flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-brand-700 hover:shadow-md active:scale-95 disabled:opacity-60 flex-shrink-0"
+                      >
+                        {processing === item.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <><Zap className="h-4 w-4" /> Check-in</>
+                        )}
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-1 text-sm font-medium text-green-600 flex-shrink-0">
+                        <CheckCircle2 className="h-4 w-4" /> Feito
+                      </div>
                     )}
                   </div>
-                  <div className="mt-0.5 flex items-center gap-3 text-sm text-gray-500">
-                    <span className="flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      {student.time}
-                    </span>
-                    <span>{student.service}</span>
-                  </div>
-                </div>
-
-                {/* Coins reward indicator */}
-                <div className="flex items-center gap-1 rounded-full bg-yellow-100 px-2.5 py-1">
-                  <Coins className="h-3.5 w-3.5 text-yellow-600" />
-                  <span className="text-xs font-bold text-yellow-700">+{student.coinsReward}</span>
-                </div>
-
-                {/* Check-in button */}
-                {student.status === 'waiting' ? (
-                  <button
-                    onClick={() => handleCheckin(student.id)}
-                    className="flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-brand-700 hover:shadow-md active:scale-95"
-                  >
-                    <Zap className="h-4 w-4" />
-                    Check-in
-                  </button>
-                ) : (
-                  <div className="flex items-center gap-1 text-sm font-medium text-green-600">
-                    <CheckCircle2 className="h-4 w-4" />
-                    Feito
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
+                )
+              })}
+            </div>
+          )}
         </>
       )}
     </div>

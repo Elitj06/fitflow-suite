@@ -1,14 +1,22 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { signIn } from '@/actions/auth'
-import { Zap, Eye, EyeOff, Loader2 } from 'lucide-react'
+import { Zap, Eye, EyeOff, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react'
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
+  const [info, setInfo] = useState('')
   const [loading, setLoading] = useState(false)
+  const searchParams = useSearchParams()
+
+  useEffect(() => {
+    const errorParam = searchParams.get('error')
+    if (errorParam) setError(decodeURIComponent(errorParam))
+  }, [searchParams])
 
   async function handleSubmit(formData: FormData) {
     setLoading(true)
@@ -39,8 +47,16 @@ export default function LoginPage() {
       </p>
 
       {error && (
-        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div className="mt-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
           {error}
+        </div>
+      )}
+
+      {info && (
+        <div className="mt-4 flex items-start gap-2 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">
+          <CheckCircle2 className="h-4 w-4 mt-0.5 flex-shrink-0" />
+          {info}
         </div>
       )}
 

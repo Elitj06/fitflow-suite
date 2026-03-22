@@ -13,9 +13,14 @@ export async function GET() {
   const profile = await getProfile()
   if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const services = await prisma.service.findMany({
-    where: { orgId: profile.orgId, isActive: true },
-    orderBy: { name: 'asc' },
+  const leaderboard = await prisma.profile.findMany({
+    where: { orgId: profile.orgId, role: 'STUDENT', isActive: true },
+    select: {
+      id: true, fullName: true, coinsBalance: true,
+      _count: { select: { checkins: true } },
+    },
+    orderBy: { coinsBalance: 'desc' },
+    take: 20,
   })
-  return NextResponse.json(services)
+  return NextResponse.json(leaderboard)
 }

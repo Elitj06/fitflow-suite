@@ -1,7 +1,8 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-const PUBLIC_ROUTES = ['/', '/login', '/register', '/api/webhooks']
+const PUBLIC_ROUTES = ['/', '/login', '/register', '/api/webhooks', '/api/auth']
+const ALWAYS_ALLOW = ['/api/auth/callback', '/onboarding']
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
@@ -15,7 +16,7 @@ export async function middleware(request: NextRequest) {
           return request.cookies.getAll()
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) =>
+          cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           )
           supabaseResponse = NextResponse.next({ request })
@@ -30,8 +31,15 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   const pathname = request.nextUrl.pathname
 
+  // Always allow auth callback and onboarding
+  if (ALWAYS_ALLOW.some(r => pathname.startsWith(r))) return supabaseResponse
+
   // Allow public routes and webhooks
-  const isPublic = PUBLIC_ROUTES.some(route => pathname === route || pathname.startsWith('/api/webhooks'))
+  const isPublic = PUBLIC_ROUTES.some(route =>
+    pathname === route ||
+    pathname.startsWith('/api/webhooks') ||
+    pathname.startsWith('/api/auth')
+  )
   if (isPublic) return supabaseResponse
 
   // Redirect unauthenticated users to login

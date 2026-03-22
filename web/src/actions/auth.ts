@@ -31,6 +31,7 @@ export async function signUp(formData: FormData) {
     password,
     options: {
       data: { full_name: fullName },
+      emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://fitflow-suite.vercel.app'}/api/auth/callback?next=/onboarding`,
     },
   })
 
@@ -38,7 +39,13 @@ export async function signUp(formData: FormData) {
     return { error: error.message }
   }
 
-  if (data.user) {
+  // If email confirmation is required (identities array exists but not confirmed)
+  if (data.user && !data.session) {
+    return { success: true, message: 'Verifique seu email para confirmar o cadastro. Apos confirmar, voce sera direcionado para configurar seu studio.' }
+  }
+
+  // If confirmation is disabled (user is immediately active)
+  if (data.user && data.session) {
     redirect('/onboarding')
   }
 
@@ -56,7 +63,7 @@ export async function completeOnboarding(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
-    return { error: 'Nao autenticado' }
+    return { error: 'Nao autenticado. Faca login novamente.' }
   }
 
   const orgName = formData.get('orgName') as string
@@ -64,8 +71,13 @@ export async function completeOnboarding(formData: FormData) {
   const role = formData.get('role') as string
   const specialty = formData.get('specialty') as string
 
+  // Check if profile already exists
+  const existing = await prisma.profile.findUnique({ where: { userId: user.id } })
+  if (existing) {
+    redirect('/trainer')
+  }
+
   try {
-    // Create organization
     const org = await prisma.organization.create({
       data: {
         name: orgName,
@@ -84,7 +96,6 @@ export async function completeOnboarding(formData: FormData) {
       },
     })
 
-    // Create profile
     await prisma.profile.create({
       data: {
         userId: user.id,
@@ -98,29 +109,24 @@ export async function completeOnboarding(formData: FormData) {
       },
     })
 
-    // Create default services
     const defaultServices = [
       { name: 'Personal Training', description: 'Sessao individual de treinamento personalizado', durationMinutes: 60, price: 120, maxCapacity: 1, category: 'PERSONAL' as const, color: '#6366f1', coinsReward: 2 },
       { name: 'Treino em Grupo', description: 'Aula coletiva com ate 8 participantes', durationMinutes: 50, price: 45, maxCapacity: 8, category: 'GROUP' as const, color: '#10b981', coinsReward: 1 },
       { name: 'Avaliacao Fisica', description: 'Avaliacao completa com bioimpedancia e medidas', durationMinutes: 45, price: 80, maxCapacity: 1, category: 'EVALUATION' as const, color: '#f59e0b', coinsReward: 3 },
     ]
-
     for (const svc of defaultServices) {
       await prisma.service.create({ data: { orgId: org.id, ...svc } })
     }
 
-    // Create default rewards
     const defaultRewards = [
       { name: 'Garrafa Exclusiva', description: 'Garrafa termica personalizada FitFlow', costCoins: 50, stock: 10, imageUrl: null },
       { name: 'Sessao Gratis', description: 'Uma sessao de personal training gratuita', costCoins: 100, stock: null, imageUrl: null },
       { name: 'Camiseta Fitness', description: 'Camiseta dry-fit com logo do studio', costCoins: 80, stock: 20, imageUrl: null },
       { name: 'Desconto 20%', description: '20% de desconto na proxima mensalidade', costCoins: 30, stock: null, imageUrl: null },
     ]
-
     for (const reward of defaultRewards) {
       await prisma.reward.create({ data: { orgId: org.id, ...reward, isActive: true } })
     }
-
   } catch (error) {
     console.error('Onboarding error:', error)
     return { error: 'Erro ao criar organizacao. Tente novamente.' }
