@@ -30,8 +30,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
     }
 
-    // Verify signature
-    if (signature && !wellhubClient.verifySignature(rawBody, signature)) {
+    // CRITICAL FIX: Require signature — never silently skip verification
+    if (!signature) {
+      console.error('[Wellhub Webhook] Missing X-Gympass-Signature header')
+      return NextResponse.json({ error: 'Missing signature' }, { status: 401 })
+    }
+
+    if (!wellhubClient.verifySignature(rawBody, signature)) {
       console.error('[Wellhub Webhook] Invalid signature')
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
     }

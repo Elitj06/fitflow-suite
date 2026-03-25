@@ -31,9 +31,19 @@ export async function GET(request: NextRequest) {
     }
   }
   if (status) where.status = status.toUpperCase()
-  if (studentId) where.studentId = studentId
-  if (profile.role === 'STUDENT') where.studentId = profile.id
-  if (profile.role === 'TRAINER') where.trainerId = profile.id
+
+  // Role-scoped filtering: students only see their own bookings; trainers see their own;
+  // admins may optionally filter by studentId
+  if (profile.role === 'STUDENT') {
+    where.studentId = profile.id
+  } else if (profile.role === 'TRAINER') {
+    where.trainerId = profile.id
+    // Trainers may additionally filter by studentId within their org
+    if (studentId) where.studentId = studentId
+  } else {
+    // ADMIN: allow filtering by studentId but still within orgId
+    if (studentId) where.studentId = studentId
+  }
 
   const bookings = await prisma.booking.findMany({
     where,
@@ -57,9 +67,29 @@ export async function POST(request: NextRequest) {
   if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json()
-  const { serviceId, trainerId, studentId, startsAt, notes } = body
+  const { serviceId, trainerId, startsAt, notes } = body
 
-  // Validate service exists
+  // HIGH FIX: Students can only book for themselves; trainers/admins may specify a studentId
+  let targetStudentId: string
+  if (profile.role === 'STUDENT') {
+    targetStudentId = profile.id
+  } else {
+    // For staff: studentId must belong to the same org
+    const reqStudentId = body.studentId
+    if (reqStudentId) {
+      const studentProfile = await prisma.profile.findFirst({
+        where: { id: reqStudentId, orgId: profile.orgId, role: 'STUDENT' },
+      })
+      if (!studentProfile) {
+        return NextResponse.json({ error: 'Aluno nao encontrado nesta organizacao' }, { status: 404 })
+      }
+      targetStudentId = reqStudentId
+    } else {
+      targetStudentId = profile.id
+    }
+  }
+
+  // Validate service exists and belongs to this org
   const service = await prisma.service.findFirst({
     where: { id: serviceId, orgId: profile.orgId, isActive: true },
   })
@@ -104,7 +134,7 @@ export async function POST(request: NextRequest) {
       orgId: profile.orgId,
       serviceId,
       trainerId,
-      studentId: studentId || profile.id,
+      studentId: targetStudentId,
       startsAt: start,
       endsAt: end,
       status: 'CONFIRMED',

@@ -18,6 +18,7 @@ interface TotalpassConfig {
 /**
  * GET /api/admin/integrations
  * Returns wellhub and totalpass config from org.chatbotConfig
+ * HIGH FIX: Requires ADMIN or TRAINER role
  */
 export async function GET() {
   const supabase = await createServerSupabaseClient()
@@ -29,6 +30,11 @@ export async function GET() {
     include: { organization: true },
   })
   if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+
+  // HIGH FIX: Only admins may view integration secrets
+  if (profile.role !== 'ADMIN' && profile.role !== 'TRAINER') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   const config = (profile.organization.chatbotConfig as Record<string, unknown>) || {}
 
@@ -50,6 +56,7 @@ export async function GET() {
 /**
  * POST /api/admin/integrations
  * Saves wellhub and/or totalpass config to org.chatbotConfig
+ * HIGH FIX: Requires ADMIN role only
  */
 export async function POST(request: NextRequest) {
   const supabase = await createServerSupabaseClient()
@@ -61,6 +68,11 @@ export async function POST(request: NextRequest) {
     include: { organization: true },
   })
   if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+
+  // HIGH FIX: Only ADMIN may write integration settings
+  if (profile.role !== 'ADMIN') {
+    return NextResponse.json({ error: 'Forbidden — ADMIN role required' }, { status: 403 })
+  }
 
   const body = await request.json() as {
     wellhub?: WellhubConfig

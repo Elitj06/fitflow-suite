@@ -38,6 +38,7 @@ export async function GET() {
 /**
  * POST /api/chatbot/config
  * Saves the chatbot configuration for the authenticated org
+ * HIGH FIX: Requires ADMIN or TRAINER role — STUDENT must not be able to edit chatbot settings
  */
 export async function POST(request: NextRequest) {
   const supabase = await createServerSupabaseClient()
@@ -49,6 +50,11 @@ export async function POST(request: NextRequest) {
     include: { organization: true },
   })
   if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+
+  // HIGH FIX: Only admins and trainers may update chatbot configuration
+  if (profile.role === 'STUDENT') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   const body = await request.json() as {
     welcomeMessage?: string

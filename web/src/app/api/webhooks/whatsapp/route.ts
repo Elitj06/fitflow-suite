@@ -1,11 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { fitBotOrchestrator } from '@/chatbot-engine/orchestrator'
 import type { WebhookPayload } from '@/chatbot-engine/integrations/evolution'
+import crypto from 'crypto'
+
+/**
+ * Verify Evolution API webhook signature
+ * Evolution API supports HMAC-SHA256 signatures via X-Hub-Signature-256 header.
+ */
+function verifyEvolutionSignature(
+  body: string,
+  sigHeader: string | null,
+  secret: string
+): boolean {
+  if (!sigHeader) return false
+  // Expected format: "sha256=<hex>"
+  const expected = 'sha256=' +
+    crypto.createHmac('sha256', secret).update(body).digest('hex')
+  if (expected.length !== sigHeader.length) return false
+  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(sigHeader))
+}
 
 /**
  * POST /api/webhooks/whatsapp
  * Receives webhooks from Evolution API
- * 
+ *
  * Evolution API sends events for:
  * - MESSAGES_UPSERT: New message received
  * - MESSAGES_UPDATE: Message status update
@@ -14,7 +32,24 @@ import type { WebhookPayload } from '@/chatbot-engine/integrations/evolution'
  */
 export async function POST(request: NextRequest) {
   try {
-    const payload: WebhookPayload = await request.json()
+    const rawBody = await request.text()
+
+    // CRITICAL FIX: Verify Evolution API webhook signature when secret is configured
+    const webhookSecret = process.env.EVOLUTION_WEBHOOK_SECRET
+    if (webhookSecret) {
+      const sigHeader = request.headers.get('x-hub-signature-256')
+      if (!verifyEvolutionSignature(rawBody, sigHeader, webhookSecret)) {
+        console.error('[WhatsApp Webhook] Invalid or missing signature')
+        return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
+      }
+    }
+
+    let payload: WebhookPayload
+    try {
+      payload = JSON.parse(rawBody)
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    }
 
     // Get org ID from query param or header
     const orgId =

@@ -1,3 +1,5 @@
+import crypto from 'crypto'
+
 /**
  * TotalPass Integration
  * 
@@ -212,12 +214,26 @@ export class TotalPassClient {
 
   /**
    * Validate webhook authenticity using API Key
+   * HIGH FIX: Use timing-safe comparison to prevent timing oracle attacks
    */
   validateWebhookAuth(
     requestApiKey: string,
     storedApiKey: string
   ): boolean {
-    return requestApiKey === storedApiKey
+    if (!requestApiKey || !storedApiKey) return false
+    try {
+      const a = Buffer.from(requestApiKey, 'utf8')
+      const b = Buffer.from(storedApiKey, 'utf8')
+      if (a.length !== b.length) {
+        // Still perform a dummy compare to avoid length-based timing leak
+        const dummy = Buffer.alloc(b.length)
+          crypto.timingSafeEqual(dummy, b)
+        return false
+      }
+      return crypto.timingSafeEqual(a, b)
+    } catch {
+      return false
+    }
   }
 }
 
