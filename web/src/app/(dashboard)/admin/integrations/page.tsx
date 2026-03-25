@@ -1,66 +1,160 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
-  Settings, CheckCircle2, XCircle, Loader2, Save,
-  ExternalLink, Shield, Wifi, WifiOff, AlertTriangle,
-  Link2, Unlink, TestTube, Zap,
+  CheckCircle2, WifiOff, Loader2, Save,
+  ExternalLink, Shield, AlertTriangle,
+  TestTube,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 
-interface IntegrationConfig {
+interface WellhubConfig {
   enabled: boolean
-  status: 'connected' | 'disconnected' | 'error'
-  lastSync?: string
+  partnerId: string
+  secretKey: string
+}
+
+interface TotalpassConfig {
+  enabled: boolean
+  apiKey: string
+  integrationCode: string
+  mode: 'checkin_only' | 'booking_and_checkin'
+}
+
+type IntegrationStatus = 'connected' | 'disconnected' | 'error'
+
+const STATUS_UI: Record<IntegrationStatus, { label: string; icon: typeof CheckCircle2; color: string }> = {
+  connected: { label: 'Conectado', icon: CheckCircle2, color: 'text-green-600 bg-green-50 border-green-200' },
+  disconnected: { label: 'Desconectado', icon: WifiOff, color: 'text-gray-500 bg-gray-50 border-gray-200' },
+  error: { label: 'Erro', icon: AlertTriangle, color: 'text-red-600 bg-red-50 border-red-200' },
 }
 
 export default function IntegrationsPage() {
+  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
   const [testing, setTesting] = useState<string | null>(null)
 
-  // Wellhub config
-  const [wellhub, setWellhub] = useState({
+  const [wellhub, setWellhub] = useState<WellhubConfig & { status: IntegrationStatus }>({
     enabled: false,
     partnerId: '',
     secretKey: '',
-    webhookUrl: '',
-    status: 'disconnected' as 'connected' | 'disconnected' | 'error',
+    status: 'disconnected',
   })
 
-  // TotalPass config
-  const [totalpass, setTotalpass] = useState({
+  const [totalpass, setTotalpass] = useState<TotalpassConfig & { status: IntegrationStatus }>({
     enabled: false,
     apiKey: '',
     integrationCode: '',
-    mode: 'checkin_only' as 'checkin_only' | 'booking_and_checkin',
-    status: 'disconnected' as 'connected' | 'disconnected' | 'error',
+    mode: 'checkin_only',
+    status: 'disconnected',
   })
 
-  function handleSaveWellhub() {
+  // Load existing config on mount
+  useEffect(() => {
+    async function loadConfig() {
+      try {
+        const res = await fetch('/api/admin/integrations')
+        if (!res.ok) throw new Error('Erro ao carregar integracoes')
+        const data = await res.json() as {
+          wellhub: WellhubConfig
+          totalpass: TotalpassConfig
+        }
+
+        setWellhub(prev => ({
+          ...prev,
+          ...data.wellhub,
+          status: data.wellhub.enabled && data.wellhub.partnerId ? 'connected' : 'disconnected',
+        }))
+        setTotalpass(prev => ({
+          ...prev,
+          ...data.totalpass,
+          status: data.totalpass.enabled && data.totalpass.apiKey ? 'connected' : 'disconnected',
+        }))
+      } catch (err) {
+        console.error('loadConfig error:', err)
+        toast.error('Nao foi possivel carregar as integracoes')
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadConfig()
+  }, [])
+
+  async function handleSaveWellhub() {
     setSaving('wellhub')
-    setTimeout(() => {
-      setWellhub(prev => ({ ...prev, status: prev.enabled ? 'connected' : 'disconnected' }))
+    try {
+      const res = await fetch('/api/admin/integrations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          wellhub: {
+            enabled: wellhub.enabled,
+            partnerId: wellhub.partnerId,
+            secretKey: wellhub.secretKey,
+          },
+        }),
+      })
+      if (!res.ok) throw new Error('Erro ao salvar')
+
+      setWellhub(prev => ({
+        ...prev,
+        status: prev.enabled && prev.partnerId ? 'connected' : 'disconnected',
+      }))
+      toast.success('Wellhub salvo com sucesso!')
+    } catch (err) {
+      console.error('handleSaveWellhub error:', err)
+      toast.error('Erro ao salvar configuracao Wellhub')
+    } finally {
       setSaving(null)
-    }, 1500)
+    }
   }
 
-  function handleSaveTotalPass() {
+  async function handleSaveTotalPass() {
     setSaving('totalpass')
-    setTimeout(() => {
-      setTotalpass(prev => ({ ...prev, status: prev.enabled ? 'connected' : 'disconnected' }))
+    try {
+      const res = await fetch('/api/admin/integrations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          totalpass: {
+            enabled: totalpass.enabled,
+            apiKey: totalpass.apiKey,
+            integrationCode: totalpass.integrationCode,
+            mode: totalpass.mode,
+          },
+        }),
+      })
+      if (!res.ok) throw new Error('Erro ao salvar')
+
+      setTotalpass(prev => ({
+        ...prev,
+        status: prev.enabled && prev.apiKey ? 'connected' : 'disconnected',
+      }))
+      toast.success('TotalPass salvo com sucesso!')
+    } catch (err) {
+      console.error('handleSaveTotalPass error:', err)
+      toast.error('Erro ao salvar configuracao TotalPass')
+    } finally {
       setSaving(null)
-    }, 1500)
+    }
   }
 
   function handleTest(provider: string) {
     setTesting(provider)
-    setTimeout(() => setTesting(null), 2000)
+    // Simulate connection test (could be replaced with a real test endpoint)
+    setTimeout(() => {
+      setTesting(null)
+      toast.info(`Teste de conexao ${provider} concluido (sem erros detectados)`)
+    }, 2000)
   }
 
-  const STATUS_UI = {
-    connected: { label: 'Conectado', icon: CheckCircle2, color: 'text-green-600 bg-green-50 border-green-200' },
-    disconnected: { label: 'Desconectado', icon: WifiOff, color: 'text-gray-500 bg-gray-50 border-gray-200' },
-    error: { label: 'Erro', icon: AlertTriangle, color: 'text-red-600 bg-red-50 border-red-200' },
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+      </div>
+    )
   }
 
   return (

@@ -90,8 +90,8 @@ export class FitBotOrchestrator {
           content: m.content,
         }))
 
-      // 6. Build context data for the AI
-      const contextData = this.buildContextData(org, conversation)
+      // 6. Build context data for the AI (now async for real availability)
+      const contextData = await this.buildContextData(org, conversation, orgId)
 
       // 7. Call Claude
       const currentMode = conversation.currentMode as ChatMode
@@ -131,7 +131,7 @@ export class FitBotOrchestrator {
         data: {
           lastMessageAt: new Date(),
           ...(action?.type === 'SWITCH_MODE' && {
-            currentMode: action.data.newMode as any,
+            currentMode: action.data.newMode as ChatMode,
           }),
         },
       })
@@ -199,13 +199,109 @@ export class FitBotOrchestrator {
   }
 
   /**
+   * Build real availability string for next 7 days
+   */
+  private async buildAvailableSlots(orgId: string): Promise<string> {
+    try {
+      const now = new Date()
+      const sevenDaysLater = new Date(now)
+      sevenDaysLater.setDate(sevenDaysLater.getDate() + 7)
+
+      // Fetch active schedule slots
+      const slots = await prisma.scheduleSlot.findMany({
+        where: { orgId, isActive: true },
+        include: { service: true },
+      })
+
+      if (slots.length === 0) {
+        return 'Nenhum horario configurado no momento.'
+      }
+
+      // Fetch existing bookings in the next 7 days
+      const bookings = await prisma.booking.findMany({
+        where: {
+          orgId,
+          startsAt: { gte: now, lte: sevenDaysLater },
+          status: { in: ['PENDING', 'CONFIRMED'] },
+        },
+        select: { startsAt: true, trainerId: true, serviceId: true },
+      })
+
+      const bookedKeys = new Set(
+        bookings.map(
+          (b) =>
+            `${b.trainerId}-${b.serviceId}-${b.startsAt.toISOString().substring(0, 16)}`
+        )
+      )
+
+      // Group available slots by date
+      const availabilityByDay: Record<string, string[]> = {}
+
+      const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab']
+      const monthNames = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
+
+      for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+        const date = new Date(now)
+        date.setDate(date.getDate() + dayOffset)
+        const dayOfWeek = date.getDay()
+        const dateStr = `${dayNames[dayOfWeek]} ${date.getDate()}/${monthNames[date.getMonth()]}`
+
+        const daySlots = slots.filter((s) => s.dayOfWeek === dayOfWeek)
+
+        for (const slot of daySlots) {
+          // Check if this slot is already booked
+          const slotDate = new Date(date)
+          const [slotHour, slotMinute] = slot.startTime.split(':').map(Number)
+          slotDate.setHours(slotHour, slotMinute, 0, 0)
+
+          // Skip slots in the past
+          if (slotDate <= now) continue
+
+          const key = `${slot.trainerId}-${slot.serviceId}-${slotDate.toISOString().substring(0, 16)}`
+          if (!bookedKeys.has(key)) {
+            if (!availabilityByDay[dateStr]) {
+              availabilityByDay[dateStr] = []
+            }
+            availabilityByDay[dateStr].push(`${slot.startTime} (${slot.service.name})`)
+          }
+        }
+      }
+
+      const entries = Object.entries(availabilityByDay)
+      if (entries.length === 0) {
+        return 'Nenhum horario disponivel nos proximos 7 dias.'
+      }
+
+      return entries
+        .map(([day, times]) => `${day}: ${times.join(', ')}`)
+        .join('\n')
+    } catch (error) {
+      console.error('[SLOTS] Error building available slots:', error)
+      return 'Disponibilidade sera confirmada em breve.'
+    }
+  }
+
+  /**
    * Build context data to inject into Claude's system prompt
    */
-  private buildContextData(
-    org: any,
-    conversation: any
-  ): Record<string, string> {
-    const config = (org.chatbotConfig as any) || {}
+  private async buildContextData(
+    org: {
+      name: string
+      phone: string | null
+      address: string | null
+      chatbotConfig: unknown
+      services: Array<{
+        name: string
+        description: string | null
+        durationMinutes: number
+        price: number | { toString(): string }
+        maxCapacity: number
+      }>
+    },
+    _conversation: unknown,
+    orgId: string
+  ): Promise<Record<string, string>> {
+    const config = (org.chatbotConfig as Record<string, unknown>) || {}
 
     const businessData = [
       `Nome: ${org.name}`,
@@ -215,7 +311,7 @@ export class FitBotOrchestrator {
       org.phone ? `Telefone: ${org.phone}` : '',
       org.address ? `Endereço: ${org.address}` : '',
       config.knowledgeBase
-        ? `\nInformações adicionais:\n${config.knowledgeBase.join('\n')}`
+        ? `\nInformações adicionais:\n${config.knowledgeBase}`
         : '',
     ]
       .filter(Boolean)
@@ -223,7 +319,7 @@ export class FitBotOrchestrator {
 
     const services = org.services
       .map(
-        (s: any) =>
+        (s) =>
           `- ${s.name}: ${s.description || 'Sem descrição'} | Duração: ${s.durationMinutes}min | Preço: R$ ${s.price} | Capacidade: ${s.maxCapacity}`
       )
       .join('\n')
@@ -232,11 +328,14 @@ export class FitBotOrchestrator {
       ? JSON.stringify(config.plans, null, 2)
       : 'Nenhum plano configurado'
 
+    // Real availability check
+    const availableSlots = await this.buildAvailableSlots(orgId)
+
     return {
       businessData,
       services: services || 'Nenhum serviço cadastrado',
       plans,
-      availableSlots: 'Consulta de disponibilidade será feita em tempo real',
+      availableSlots,
     }
   }
 
@@ -267,8 +366,7 @@ export class FitBotOrchestrator {
         break
 
       case 'ESCALATE_HUMAN':
-        // TODO: Notify admin via dashboard/push
-        console.log(`[ESCALATE] Conversation ${conversationId} needs human`)
+        await this.handleEscalateHuman(conversationId, orgId, phone)
         break
     }
   }
@@ -346,6 +444,34 @@ export class FitBotOrchestrator {
           },
         })
         console.log(`[BOOKING] Created for ${phone} at ${startsAt}`)
+
+        // Send WhatsApp confirmation
+        const org = await prisma.organization.findUnique({ where: { id: orgId } })
+        if (org?.whatsappInstanceId) {
+          const formattedDate = startsAt.toLocaleDateString('pt-BR', {
+            weekday: 'long',
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+          })
+          const formattedTime = startsAt.toLocaleTimeString('pt-BR', {
+            hour: '2-digit',
+            minute: '2-digit',
+          })
+
+          const confirmationMsg =
+            `✅ *Agendamento Confirmado!*\n\n` +
+            `📅 *Serviço:* ${service.name}\n` +
+            `📆 *Data:* ${formattedDate}\n` +
+            `🕐 *Horário:* ${formattedTime}\n\n` +
+            `Em caso de imprevistos, nos avise com antecedência. Até lá! 💪`
+
+          await evolutionClient.sendText({
+            instanceName: org.whatsappInstanceId,
+            to: phone,
+            text: confirmationMsg,
+          })
+        }
       }
     } catch (error) {
       console.error('[BOOKING] Error creating booking:', error)
@@ -383,13 +509,143 @@ export class FitBotOrchestrator {
     phone: string
   ): Promise<void> {
     try {
-      // TODO: Create Stripe/Asaas payment link
-      // TODO: Send payment link via WhatsApp
+      const stripeKey = process.env.STRIPE_SECRET_KEY
+
+      if (stripeKey) {
+        // Try to create a Stripe payment link
+        try {
+          // First, find or look up a price ID for the plan
+          // We use a generic product name for now and create a one-time price
+          const productRes = await fetch('https://api.stripe.com/v1/products', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${stripeKey}`,
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+              name: data.plan || 'Plano Fitness',
+              description: `Venda via FitBot para ${data.name} (${phone})`,
+            }),
+          })
+
+          if (!productRes.ok) throw new Error('Failed to create Stripe product')
+          const product = await productRes.json() as { id: string }
+
+          const priceRes = await fetch('https://api.stripe.com/v1/prices', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${stripeKey}`,
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+              product: product.id,
+              currency: 'brl',
+              // Default amount — a real implementation would look up the plan price
+              unit_amount: '9900',
+            }),
+          })
+
+          if (!priceRes.ok) throw new Error('Failed to create Stripe price')
+          const price = await priceRes.json() as { id: string }
+
+          const linkRes = await fetch('https://api.stripe.com/v1/payment_links', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${stripeKey}`,
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+              'line_items[0][price]': price.id,
+              'line_items[0][quantity]': '1',
+              'metadata[orgId]': orgId,
+              'metadata[phone]': phone,
+              'metadata[plan]': data.plan,
+            }),
+          })
+
+          if (!linkRes.ok) throw new Error('Failed to create payment link')
+          const paymentLink = await linkRes.json() as { url: string }
+
+          console.log(`[SALE] Stripe payment link created: ${paymentLink.url}`)
+
+          // Send the payment link via WhatsApp
+          const org = await prisma.organization.findUnique({ where: { id: orgId } })
+          if (org?.whatsappInstanceId) {
+            await evolutionClient.sendText({
+              instanceName: org.whatsappInstanceId,
+              to: phone,
+              text:
+                `💳 *Aqui está o seu link de pagamento para o ${data.plan}:*\n\n` +
+                `${paymentLink.url}\n\n` +
+                `O link é seguro e processado pelo Stripe. Qualquer dúvida, estamos aqui! 😊`,
+            })
+          }
+          return
+        } catch (stripeError) {
+          console.error('[SALE] Stripe error, falling back to human handoff:', stripeError)
+        }
+      }
+
+      // Fallback: notify human team via WhatsApp
+      const org = await prisma.organization.findUnique({ where: { id: orgId } })
+      if (org?.whatsappInstanceId) {
+        const fallbackMsg =
+          `👋 Ótimo interesse no ${data.plan || 'nosso plano'}!\n\n` +
+          `Nossa equipe vai entrar em contato com você em breve para finalizar a sua matricula e oferecer as melhores condições. ` +
+          `Fique de olho no WhatsApp! 😊\n\n` +
+          `_Equipe ${org.name}_`
+
+        await evolutionClient.sendText({
+          instanceName: org.whatsappInstanceId,
+          to: phone,
+          text: fallbackMsg,
+        })
+      }
+
       console.log(
-        `[SALE] Initiated for ${data.name} - Plan: ${data.plan} - Phone: ${phone}`
+        `[SALE] Human fallback for ${data.name} - Plan: ${data.plan} - Phone: ${phone}`
       )
     } catch (error) {
       console.error('[SALE] Error initiating sale:', error)
+    }
+  }
+
+  /**
+   * Handle ESCALATE_HUMAN: notify admin via WhatsApp and update conversation
+   */
+  private async handleEscalateHuman(
+    conversationId: string,
+    orgId: string,
+    clientPhone: string
+  ): Promise<void> {
+    try {
+      const org = await prisma.organization.findUnique({ where: { id: orgId } })
+
+      // Update conversation to HUMAN_HANDOFF
+      await prisma.chatConversation.update({
+        where: { id: conversationId },
+        data: { currentMode: 'HUMAN_HANDOFF' },
+      })
+
+      // Notify admin via WhatsApp if configured
+      if (org?.phone && org.whatsappInstanceId) {
+        const alertMsg =
+          `🚨 *Atendimento Humano Solicitado*\n\n` +
+          `Um cliente precisa de atendimento humano.\n\n` +
+          `📱 *Contato:* ${clientPhone}\n` +
+          `🕐 *Horário:* ${new Date().toLocaleString('pt-BR')}\n\n` +
+          `Por favor, entre em contato com o cliente o mais rápido possível.`
+
+        await evolutionClient.sendText({
+          instanceName: org.whatsappInstanceId,
+          to: org.phone,
+          text: alertMsg,
+        })
+      }
+
+      console.log(`[ESCALATE] Conversation ${conversationId} set to HUMAN_HANDOFF. Admin notified.`)
+    } catch (error) {
+      console.error('[ESCALATE] Error handling escalation:', error)
     }
   }
 }

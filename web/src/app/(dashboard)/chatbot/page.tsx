@@ -1,13 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   Bot, MessageSquare, Calendar, ShoppingCart, Settings,
-  Wifi, WifiOff, QrCode, BarChart3, Clock, Users,
-  Zap, ArrowUpRight, CheckCircle2, AlertCircle, Save,
-  Loader2, RefreshCw, TestTube, Send,
+  WifiOff, QrCode, BarChart3, Clock, Zap,
+  Save, Loader2, TestTube, Send,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 
 const MOCK_STATS = {
   totalMessages: 1247,
@@ -32,16 +32,46 @@ const MODE_CONFIG = {
   SALES: { label: 'Vendas', color: 'bg-amber-100 text-amber-700', icon: ShoppingCart },
 }
 
+const ACTION_BADGE_COLORS: Record<string, string> = {
+  CREATE_BOOKING: 'bg-green-100 text-green-800',
+  CANCEL_BOOKING: 'bg-red-100 text-red-800',
+  RESCHEDULE_BOOKING: 'bg-blue-100 text-blue-800',
+  INITIATE_SALE: 'bg-amber-100 text-amber-800',
+  SWITCH_MODE: 'bg-purple-100 text-purple-800',
+  ESCALATE_HUMAN: 'bg-orange-100 text-orange-800',
+}
+
+interface ChatMessage {
+  role: 'user' | 'bot'
+  content: string
+  action?: string | null
+}
+
+interface ChatbotConfig {
+  welcomeMessage: string
+  businessHours: string
+  aiPersonality: string
+  attendanceEnabled: boolean
+  schedulingEnabled: boolean
+  salesEnabled: boolean
+  autoReply: boolean
+  humanHandoffMessage: string
+  knowledgeBase: string
+  plans: unknown[]
+}
+
 export default function ChatbotPage() {
   const [tab, setTab] = useState<'overview' | 'config' | 'test'>('overview')
-  const [connected, setConnected] = useState(true)
+  const [connected] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [configLoading, setConfigLoading] = useState(true)
   const [testMessage, setTestMessage] = useState('')
-  const [testResponse, setTestResponse] = useState('')
+  const [testMode, setTestMode] = useState<'ATTENDANCE' | 'SCHEDULING' | 'SALES'>('ATTENDANCE')
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([])
   const [testLoading, setTestLoading] = useState(false)
+  const chatBottomRef = useRef<HTMLDivElement>(null)
 
-  // Config state
-  const [config, setConfig] = useState({
+  const [config, setConfig] = useState<ChatbotConfig>({
     welcomeMessage: 'Ola! Bem-vindo ao Studio Fitness Premium. Como posso ajudar? 💪',
     businessHours: 'Segunda a Sexta, 6h as 22h. Sabado 8h as 18h.',
     aiPersonality: 'amigavel e profissional',
@@ -50,27 +80,89 @@ export default function ChatbotPage() {
     salesEnabled: true,
     autoReply: true,
     humanHandoffMessage: 'Vou transferir voce para um de nossos atendentes. Aguarde um momento!',
+    knowledgeBase: '',
+    plans: [],
   })
 
-  function handleSave() {
+  // Load config on mount
+  useEffect(() => {
+    async function loadConfig() {
+      try {
+        const res = await fetch('/api/chatbot/config')
+        if (!res.ok) throw new Error('Erro ao carregar configuracoes')
+        const data = await res.json() as Partial<ChatbotConfig>
+        setConfig(prev => ({ ...prev, ...data }))
+      } catch (err) {
+        console.error('loadConfig error:', err)
+        toast.error('Nao foi possivel carregar as configuracoes')
+      } finally {
+        setConfigLoading(false)
+      }
+    }
+    loadConfig()
+  }, [])
+
+  // Scroll chat to bottom on new messages
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [chatHistory, testLoading])
+
+  async function handleSave() {
     setSaving(true)
-    setTimeout(() => setSaving(false), 1500)
+    try {
+      const res = await fetch('/api/chatbot/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config),
+      })
+      if (!res.ok) throw new Error('Erro ao salvar')
+      toast.success('Configuracoes salvas com sucesso!')
+    } catch (err) {
+      console.error('handleSave error:', err)
+      toast.error('Erro ao salvar configuracoes')
+    } finally {
+      setSaving(false)
+    }
   }
 
-  function handleTest() {
+  async function handleTest() {
     if (!testMessage.trim()) return
+
+    const userMsg = testMessage.trim()
+    setTestMessage('')
     setTestLoading(true)
-    setTestResponse('')
-    setTimeout(() => {
-      setTestResponse(
-        'Ola! Claro, posso ajudar com o agendamento. Temos horarios disponiveis amanha:\n\n' +
-        '• 08:00 - Personal Training\n' +
-        '• 09:00 - Personal Training\n' +
-        '• 10:00 - Treino em Grupo (3 vagas)\n\n' +
-        'Qual horario prefere? 😊'
-      )
+
+    // Add user message to history
+    setChatHistory(prev => [...prev, { role: 'user', content: userMsg }])
+
+    try {
+      const res = await fetch('/api/chatbot/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: userMsg,
+          mode: testMode,
+          history: chatHistory,
+        }),
+      })
+
+      if (!res.ok) throw new Error('Erro ao testar bot')
+
+      const data = await res.json() as { response: string; action?: string | null }
+
+      setChatHistory(prev => [
+        ...prev,
+        { role: 'bot', content: data.response, action: data.action },
+      ])
+    } catch (err) {
+      console.error('handleTest error:', err)
+      setChatHistory(prev => [
+        ...prev,
+        { role: 'bot', content: '❌ Erro ao obter resposta. Verifique se a chave da API Claude esta configurada.', action: null },
+      ])
+    } finally {
       setTestLoading(false)
-    }, 2000)
+    }
   }
 
   return (
@@ -116,7 +208,7 @@ export default function ChatbotPage() {
         ].map((t) => (
           <button
             key={t.key}
-            onClick={() => setTab(t.key as any)}
+            onClick={() => setTab(t.key as 'overview' | 'config' | 'test')}
             className={cn('flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-all',
               tab === t.key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
             )}
@@ -193,83 +285,105 @@ export default function ChatbotPage() {
           <div className="rounded-2xl border border-gray-200 bg-white p-6 space-y-6">
             <h3 className="font-display text-lg font-semibold text-gray-900">Configuracoes do Bot</h3>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Mensagem de boas-vindas</label>
-              <textarea
-                rows={3}
-                value={config.welcomeMessage}
-                onChange={(e) => setConfig({ ...config, welcomeMessage: e.target.value })}
-                className="mt-1.5 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 resize-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Horario de funcionamento</label>
-              <input
-                type="text"
-                value={config.businessHours}
-                onChange={(e) => setConfig({ ...config, businessHours: e.target.value })}
-                className="mt-1.5 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Personalidade da IA</label>
-              <select
-                value={config.aiPersonality}
-                onChange={(e) => setConfig({ ...config, aiPersonality: e.target.value })}
-                className="mt-1.5 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
-              >
-                <option value="amigavel e profissional">Amigavel e Profissional</option>
-                <option value="formal e objetivo">Formal e Objetivo</option>
-                <option value="casual e descontraido">Casual e Descontraido</option>
-                <option value="motivador e energetico">Motivador e Energetico</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">Modos ativos</label>
-              <div className="space-y-3">
-                {[
-                  { key: 'attendanceEnabled', label: 'Atendimento', desc: 'Responde duvidas e FAQ automaticamente', icon: MessageSquare, color: 'blue' },
-                  { key: 'schedulingEnabled', label: 'Agendamento', desc: 'Marca e gerencia sessoes via WhatsApp', icon: Calendar, color: 'green' },
-                  { key: 'salesEnabled', label: 'Vendas', desc: 'Apresenta planos e fecha vendas', icon: ShoppingCart, color: 'amber' },
-                ].map((mode) => (
-                  <label key={mode.key} className="flex items-center gap-4 rounded-xl border border-gray-200 p-4 cursor-pointer hover:bg-gray-50 transition-colors">
-                    <input
-                      type="checkbox"
-                      checked={config[mode.key as keyof typeof config] as boolean}
-                      onChange={(e) => setConfig({ ...config, [mode.key]: e.target.checked })}
-                      className="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
-                    />
-                    <mode.icon className={cn('h-5 w-5', `text-${mode.color}-500`)} />
-                    <div className="flex-1">
-                      <div className="text-sm font-medium text-gray-900">{mode.label}</div>
-                      <div className="text-xs text-gray-500">{mode.desc}</div>
-                    </div>
-                  </label>
-                ))}
+            {configLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
               </div>
-            </div>
+            ) : (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Mensagem de boas-vindas</label>
+                  <textarea
+                    rows={3}
+                    value={config.welcomeMessage}
+                    onChange={(e) => setConfig({ ...config, welcomeMessage: e.target.value })}
+                    className="mt-1.5 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 resize-none"
+                  />
+                </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Mensagem de transferencia para humano</label>
-              <input
-                type="text"
-                value={config.humanHandoffMessage}
-                onChange={(e) => setConfig({ ...config, humanHandoffMessage: e.target.value })}
-                className="mt-1.5 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
-              />
-            </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Horario de funcionamento</label>
+                  <input
+                    type="text"
+                    value={config.businessHours}
+                    onChange={(e) => setConfig({ ...config, businessHours: e.target.value })}
+                    className="mt-1.5 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
+                  />
+                </div>
 
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="flex items-center gap-2 rounded-xl bg-brand-600 px-6 py-3 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
-            >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              {saving ? 'Salvando...' : 'Salvar Configuracoes'}
-            </button>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Personalidade da IA</label>
+                  <select
+                    value={config.aiPersonality}
+                    onChange={(e) => setConfig({ ...config, aiPersonality: e.target.value })}
+                    className="mt-1.5 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
+                  >
+                    <option value="amigavel e profissional">Amigavel e Profissional</option>
+                    <option value="formal e objetivo">Formal e Objetivo</option>
+                    <option value="casual e descontraido">Casual e Descontraido</option>
+                    <option value="motivador e energetico">Motivador e Energetico</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-3">Modos ativos</label>
+                  <div className="space-y-3">
+                    {[
+                      { key: 'attendanceEnabled', label: 'Atendimento', desc: 'Responde duvidas e FAQ automaticamente', icon: MessageSquare, color: 'blue' },
+                      { key: 'schedulingEnabled', label: 'Agendamento', desc: 'Marca e gerencia sessoes via WhatsApp', icon: Calendar, color: 'green' },
+                      { key: 'salesEnabled', label: 'Vendas', desc: 'Apresenta planos e fecha vendas', icon: ShoppingCart, color: 'amber' },
+                    ].map((mode) => (
+                      <label key={mode.key} className="flex items-center gap-4 rounded-xl border border-gray-200 p-4 cursor-pointer hover:bg-gray-50 transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={config[mode.key as keyof ChatbotConfig] as boolean}
+                          onChange={(e) => setConfig({ ...config, [mode.key]: e.target.checked })}
+                          className="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                        />
+                        <mode.icon className={cn('h-5 w-5', `text-${mode.color}-500`)} />
+                        <div className="flex-1">
+                          <div className="text-sm font-medium text-gray-900">{mode.label}</div>
+                          <div className="text-xs text-gray-500">{mode.desc}</div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Mensagem de transferencia para humano</label>
+                  <input
+                    type="text"
+                    value={config.humanHandoffMessage}
+                    onChange={(e) => setConfig({ ...config, humanHandoffMessage: e.target.value })}
+                    className="mt-1.5 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Base de Conhecimento</label>
+                  <p className="mt-0.5 text-xs text-gray-400">
+                    Adicione informacoes adicionais que o FitBot deve conhecer (regras, politicas, FAQ, etc.)
+                  </p>
+                  <textarea
+                    rows={6}
+                    value={config.knowledgeBase}
+                    onChange={(e) => setConfig({ ...config, knowledgeBase: e.target.value })}
+                    placeholder="Ex: Nossa academia tem estacionamento gratuito. Aceitamos cartao, PIX e dinheiro. Temos vestiario masculino e feminino..."
+                    className="mt-1.5 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 resize-none"
+                  />
+                </div>
+
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="flex items-center gap-2 rounded-xl bg-brand-600 px-6 py-3 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
+                >
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  {saving ? 'Salvando...' : 'Salvar Configuracoes'}
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -277,47 +391,44 @@ export default function ChatbotPage() {
       {/* Test tab */}
       {tab === 'test' && (
         <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
-          <div className="border-b border-gray-100 px-6 py-4">
-            <h3 className="font-display text-base font-semibold text-gray-900">Simular Conversa</h3>
-            <p className="text-xs text-gray-500 mt-0.5">Teste o FitBot antes de ativar para seus clientes</p>
+          <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+            <div>
+              <h3 className="font-display text-base font-semibold text-gray-900">Simular Conversa</h3>
+              <p className="text-xs text-gray-500 mt-0.5">Teste o FitBot antes de ativar para seus clientes</p>
+            </div>
+            {/* Mode selector */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500 font-medium">Modo:</span>
+              <div className="flex gap-1 rounded-lg border border-gray-200 bg-gray-50 p-0.5">
+                {(['ATTENDANCE', 'SCHEDULING', 'SALES'] as const).map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => setTestMode(m)}
+                    className={cn(
+                      'rounded-md px-2.5 py-1 text-xs font-semibold transition-all',
+                      testMode === m
+                        ? MODE_CONFIG[m].color + ' shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700'
+                    )}
+                  >
+                    {MODE_CONFIG[m].label}
+                  </button>
+                ))}
+              </div>
+              {chatHistory.length > 0 && (
+                <button
+                  onClick={() => setChatHistory([])}
+                  className="text-xs text-gray-400 hover:text-gray-600 ml-2"
+                >
+                  Limpar
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Chat area */}
           <div className="h-96 bg-[#ece5dd] p-4 overflow-y-auto space-y-3">
-            {testResponse && (
-              <>
-                {/* User message */}
-                <div className="flex justify-end">
-                  <div className="max-w-[70%] rounded-2xl rounded-br-md bg-[#dcf8c6] px-4 py-2 shadow-sm">
-                    <p className="text-sm text-gray-900">{testMessage}</p>
-                    <p className="text-[10px] text-gray-500 text-right mt-1">Agora</p>
-                  </div>
-                </div>
-                {/* Bot response */}
-                <div className="flex justify-start">
-                  <div className="max-w-[70%] rounded-2xl rounded-bl-md bg-white px-4 py-2 shadow-sm">
-                    <div className="flex items-center gap-1 mb-1">
-                      <Bot className="h-3 w-3 text-green-600" />
-                      <span className="text-[10px] font-bold text-green-600">FitBot IA</span>
-                    </div>
-                    <p className="text-sm text-gray-900 whitespace-pre-line">{testResponse}</p>
-                    <p className="text-[10px] text-gray-500 text-right mt-1">Agora</p>
-                  </div>
-                </div>
-              </>
-            )}
-            {testLoading && (
-              <div className="flex justify-start">
-                <div className="rounded-2xl rounded-bl-md bg-white px-4 py-3 shadow-sm">
-                  <div className="flex gap-1">
-                    <span className="h-2 w-2 rounded-full bg-gray-300 animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <span className="h-2 w-2 rounded-full bg-gray-300 animate-bounce" style={{ animationDelay: '200ms' }} />
-                    <span className="h-2 w-2 rounded-full bg-gray-300 animate-bounce" style={{ animationDelay: '400ms' }} />
-                  </div>
-                </div>
-              </div>
-            )}
-            {!testResponse && !testLoading && (
+            {chatHistory.length === 0 && !testLoading ? (
               <div className="flex h-full items-center justify-center text-center">
                 <div>
                   <Bot className="mx-auto h-12 w-12 text-gray-300" />
@@ -325,10 +436,56 @@ export default function ChatbotPage() {
                     Envie uma mensagem para testar o FitBot
                   </p>
                   <p className="text-xs text-gray-300 mt-1">
-                    Tente: "Quero agendar uma aula amanha"
+                    Tente: &quot;Quero agendar uma aula amanha&quot;
                   </p>
                 </div>
               </div>
+            ) : (
+              <>
+                {chatHistory.map((msg, i) => (
+                  <div key={i} className={cn('flex', msg.role === 'user' ? 'justify-end' : 'justify-start')}>
+                    <div
+                      className={cn(
+                        'max-w-[75%] rounded-2xl px-4 py-2 shadow-sm',
+                        msg.role === 'user'
+                          ? 'rounded-br-md bg-[#dcf8c6]'
+                          : 'rounded-bl-md bg-white'
+                      )}
+                    >
+                      {msg.role === 'bot' && (
+                        <div className="flex items-center gap-1 mb-1">
+                          <Bot className="h-3 w-3 text-green-600" />
+                          <span className="text-[10px] font-bold text-green-600">FitBot IA</span>
+                        </div>
+                      )}
+                      <p className="text-sm text-gray-900 whitespace-pre-line">{msg.content}</p>
+                      {msg.role === 'bot' && msg.action && (
+                        <div className="mt-1.5">
+                          <span className={cn(
+                            'inline-block rounded-full px-2 py-0.5 text-[10px] font-bold',
+                            ACTION_BADGE_COLORS[msg.action] || 'bg-gray-100 text-gray-700'
+                          )}>
+                            ⚡ {msg.action}
+                          </span>
+                        </div>
+                      )}
+                      <p className="text-[10px] text-gray-500 text-right mt-1">Agora</p>
+                    </div>
+                  </div>
+                ))}
+                {testLoading && (
+                  <div className="flex justify-start">
+                    <div className="rounded-2xl rounded-bl-md bg-white px-4 py-3 shadow-sm">
+                      <div className="flex gap-1">
+                        <span className="h-2 w-2 rounded-full bg-gray-300 animate-bounce" style={{ animationDelay: '0ms' }} />
+                        <span className="h-2 w-2 rounded-full bg-gray-300 animate-bounce" style={{ animationDelay: '200ms' }} />
+                        <span className="h-2 w-2 rounded-full bg-gray-300 animate-bounce" style={{ animationDelay: '400ms' }} />
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div ref={chatBottomRef} />
+              </>
             )}
           </div>
 
@@ -338,7 +495,7 @@ export default function ChatbotPage() {
               type="text"
               value={testMessage}
               onChange={(e) => setTestMessage(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleTest()}
+              onKeyDown={(e) => e.key === 'Enter' && !testLoading && handleTest()}
               placeholder="Digite uma mensagem de teste..."
               className="flex-1 rounded-xl border border-gray-300 px-4 py-2.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
             />
