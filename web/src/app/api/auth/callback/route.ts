@@ -4,7 +4,9 @@ import { NextResponse } from 'next/server'
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
-  const next = searchParams.get('next') ?? '/trainer'
+  const SAFE_PATH = /^\/[a-zA-Z0-9\/_\-]*$/
+  const rawNext = searchParams.get('next') ?? '/trainer'
+  const next = SAFE_PATH.test(rawNext) ? rawNext : '/trainer'
   const errorParam = searchParams.get('error')
   const errorDescription = searchParams.get('error_description')
 

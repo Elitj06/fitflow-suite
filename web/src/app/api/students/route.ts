@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+
+const CreateStudentSchema = z.object({
+  fullName: z.string().min(2).max(100),
+  email: z.string().email(),
+  phone: z.string().max(20).optional(),
+  birthDate: z.string().optional(),
+  emergencyContact: z.string().max(200).optional(),
+  healthNotes: z.string().max(2000).optional(),
+})
 
 async function getProfile() {
   const supabase = await createServerSupabaseClient()
@@ -49,7 +59,12 @@ export async function POST(request: NextRequest) {
   const profile = await getProfile()
   if (!profile || profile.role === 'STUDENT') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const body = await request.json()
+  const rawBody = await request.json()
+  const parsed = CreateStudentSchema.safeParse(rawBody)
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.flatten() }, { status: 422 })
+  }
+  const body = parsed.data
 
   // Check if student already exists
   const existing = await prisma.profile.findFirst({

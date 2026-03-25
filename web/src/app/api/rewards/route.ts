@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+
+const CreateRewardSchema = z.object({
+  name: z.string().min(1).max(100),
+  description: z.string().max(500).optional(),
+  costCoins: z.number().int().positive(),
+  stock: z.number().int().nonnegative().nullable().optional(),
+  imageUrl: z.string().url().optional().or(z.literal('')),
+})
 
 async function getProfile() {
   const supabase = await createServerSupabaseClient()
@@ -25,7 +34,12 @@ export async function POST(request: NextRequest) {
   const profile = await getProfile()
   if (!profile || profile.role === 'STUDENT') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const body = await request.json()
+  const rawBody = await request.json()
+  const parsed = CreateRewardSchema.safeParse(rawBody)
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.flatten() }, { status: 422 })
+  }
+  const body = parsed.data
 
   const reward = await prisma.reward.create({
     data: {

@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+
+const RedeemSchema = z.object({
+  rewardId: z.string().min(1),
+})
 
 async function getAuthUserId(): Promise<string | null> {
   const supabase = await createServerSupabaseClient()
@@ -22,12 +27,12 @@ export async function POST(request: NextRequest) {
   const userId = await getAuthUserId()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const body = await request.json()
-  const { rewardId } = body
-
-  if (!rewardId || typeof rewardId !== 'string') {
-    return NextResponse.json({ error: 'rewardId is required' }, { status: 400 })
+  const rawBody = await request.json()
+  const parsed = RedeemSchema.safeParse(rawBody)
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.flatten() }, { status: 422 })
   }
+  const { rewardId } = parsed.data
 
   // Run everything inside a serializable transaction to eliminate TOCTOU race
   let result: { transactionId: string; rewardName: string; coinsSpent: number; newBalance: number }

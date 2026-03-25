@@ -1,6 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
+
+const ChatbotConfigSchema = z.object({
+  welcomeMessage: z.string().max(1000).optional(),
+  businessHours: z.string().max(500).optional(),
+  aiPersonality: z.string().max(500).optional(),
+  attendanceEnabled: z.boolean().optional(),
+  schedulingEnabled: z.boolean().optional(),
+  salesEnabled: z.boolean().optional(),
+  autoReply: z.boolean().optional(),
+  humanHandoffMessage: z.string().max(1000).optional(),
+  knowledgeBase: z.string().max(10000).optional(),
+  plans: z.array(z.unknown()).optional(),
+})
 
 /**
  * GET /api/chatbot/config
@@ -56,17 +70,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const body = await request.json() as {
-    welcomeMessage?: string
-    businessHours?: string
-    aiPersonality?: string
-    attendanceEnabled?: boolean
-    schedulingEnabled?: boolean
-    salesEnabled?: boolean
-    autoReply?: boolean
-    humanHandoffMessage?: string
-    knowledgeBase?: string
-    plans?: unknown[]
+  const rawBody = await request.json()
+  const parsedBody = ChatbotConfigSchema.safeParse(rawBody)
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: parsedBody.error.flatten() }, { status: 422 })
+  }
+  const body = parsedBody.data
+
+  // MED-02: Enforce knowledgeBase size limit
+  if (body.knowledgeBase && body.knowledgeBase.length > 10000) {
+    return NextResponse.json({ error: 'knowledgeBase must not exceed 10000 characters' }, { status: 422 })
   }
 
   const {

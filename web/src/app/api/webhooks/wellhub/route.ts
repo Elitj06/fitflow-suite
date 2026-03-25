@@ -217,7 +217,7 @@ async function handleBooking(payload: WellhubBookingPayload, orgId: string) {
 
   switch (status) {
     case 'booked':
-      console.log(`[Wellhub] New booking: ${booking_number} for user ${user.user_id}`)
+      console.log(`[Wellhub] New booking: ${booking_number}`)
       // Could auto-create a booking in FitFlow
       break
 
@@ -254,9 +254,9 @@ async function handleUserStatusChange(payload: WellhubUserStatusChangePayload, o
       },
       data: { healthNotes: 'Wellhub: Plano cancelado' },
     })
-    console.log(`[Wellhub] User cancelled: ${user_unique_identifier}`)
+    console.log('[Wellhub] User cancelled: [redacted]')
   } else {
-    console.log(`[Wellhub] User status changed to ${status}: ${user_unique_identifier}`)
+    console.log(`[Wellhub] User status changed to ${status}: [redacted]`)
   }
 
   return NextResponse.json({ status: 'ok', action: 'user_status_updated' })

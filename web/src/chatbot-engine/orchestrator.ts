@@ -443,7 +443,7 @@ export class FitBotOrchestrator {
             source: 'WHATSAPP',
           },
         })
-        console.log(`[BOOKING] Created for ${phone} at ${startsAt}`)
+        console.log(`[BOOKING] Created for student ID ${student.id} at ${startsAt}`)
 
         // Send WhatsApp confirmation
         const org = await prisma.organization.findUnique({ where: { id: orgId } })
@@ -603,7 +603,7 @@ export class FitBotOrchestrator {
       }
 
       console.log(
-        `[SALE] Human fallback for ${data.name} - Plan: ${data.plan} - Phone: ${phone}`
+        `[SALE] Human fallback initiated - Plan: ${data.plan}`
       )
     } catch (error) {
       console.error('[SALE] Error initiating sale:', error)
@@ -644,6 +644,7 @@ export class FitBotOrchestrator {
       }
 
       console.log(`[ESCALATE] Conversation ${conversationId} set to HUMAN_HANDOFF. Admin notified.`)
+      // Note: clientPhone not logged to avoid PII in logs
     } catch (error) {
       console.error('[ESCALATE] Error handling escalation:', error)
     }

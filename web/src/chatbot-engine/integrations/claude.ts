@@ -106,8 +106,8 @@ function sanitizeForPrompt(value: string): string {
   if (!value || typeof value !== 'string') return ''
   // Remove null bytes and control characters
   let sanitized = value.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, '')
-  // Limit length to prevent context overflow via injected data
-  return sanitized.slice(0, 4000)
+  // Limit length to prevent context overflow via injected data (max 10000 chars)
+  return sanitized.slice(0, 10000)
 }
 
 export class ClaudeClient {
@@ -117,6 +117,9 @@ export class ClaudeClient {
   constructor() {
     this.apiKey = process.env.ANTHROPIC_API_KEY || ''
     this.model = 'claude-sonnet-4-20250514'
+    if (!this.apiKey) {
+      throw new Error('ANTHROPIC_API_KEY environment variable is required')
+    }
   }
 
   async chat(

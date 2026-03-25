@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+
+const CreateBookingSchema = z.object({
+  serviceId: z.string().min(1),
+  trainerId: z.string().min(1),
+  startsAt: z.string().min(1),
+  studentId: z.string().optional(),
+  notes: z.string().max(1000).optional(),
+})
 
 async function getProfile() {
   const supabase = await createServerSupabaseClient()
@@ -66,7 +75,12 @@ export async function POST(request: NextRequest) {
   const profile = await getProfile()
   if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const body = await request.json()
+  const rawBody = await request.json()
+  const parsed = CreateBookingSchema.safeParse(rawBody)
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.flatten() }, { status: 422 })
+  }
+  const body = parsed.data
   const { serviceId, trainerId, startsAt, notes } = body
 
   // HIGH FIX: Students can only book for themselves; trainers/admins may specify a studentId

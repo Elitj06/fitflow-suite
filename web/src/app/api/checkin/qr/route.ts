@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import crypto from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 
@@ -24,12 +25,17 @@ export async function GET(request: NextRequest) {
   })
   if (!booking) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  // The QR code content is simply the booking ID
+  // Generate HMAC-signed QR token to prevent forgery
+  const secret = process.env.QR_SECRET || 'fitflow-qr-secret'
+  const timestamp = Math.floor(Date.now() / 1000)
+  const hmac = crypto.createHmac('sha256', secret).update(`${booking.id}:${timestamp}`).digest('hex')
+  const qrData = `${booking.id}:${timestamp}:${hmac}`
+
   return NextResponse.json({
     bookingId: booking.id,
     studentName: booking.student.fullName,
     serviceName: booking.service.name,
     startsAt: booking.startsAt,
-    qrData: booking.id,
+    qrData,
   })
 }
