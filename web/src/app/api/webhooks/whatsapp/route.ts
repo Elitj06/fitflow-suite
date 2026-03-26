@@ -63,6 +63,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Validate orgId format (cuid: starts with c, alphanumeric, ~25 chars)
+    if (!/^c[a-z0-9]{20,30}$/.test(orgId)) {
+      return NextResponse.json({ error: 'Invalid orgId' }, { status: 400 })
+    }
+
     // Only process new incoming messages
     if (payload.event !== 'MESSAGES_UPSERT') {
       return NextResponse.json({ status: 'ignored', event: payload.event })

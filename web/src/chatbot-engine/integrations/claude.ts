@@ -98,6 +98,11 @@ PLANOS DISPONÍVEIS:
 {{plans}}`,
 }
 
+// --- Rate Limiting ---
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
+const RATE_LIMIT_MAX = 20       // max mensagens por janela
+const RATE_LIMIT_WINDOW_MS = 60_000  // janela de 1 minuto
+
 /**
  * Sanitize user-controlled strings before injecting them into system prompts.
  * Strips characters/patterns commonly used in prompt-injection attacks.
@@ -122,11 +127,38 @@ export class ClaudeClient {
     }
   }
 
+  /**
+   * Check rate limit for a phone number.
+   * Returns true if the request is allowed, false if rate limit exceeded.
+   */
+  checkRateLimit(phone: string): boolean {
+    const now = Date.now()
+    const entry = rateLimitMap.get(phone)
+
+    if (!entry || now >= entry.resetAt) {
+      // First message or window expired — reset
+      rateLimitMap.set(phone, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS })
+      return true
+    }
+
+    if (entry.count >= RATE_LIMIT_MAX) {
+      return false
+    }
+
+    entry.count++
+    return true
+  }
+
   async chat(
     mode: 'ATTENDANCE' | 'SCHEDULING' | 'SALES',
     messages: ClaudeMessage[],
-    contextData: Record<string, string> = {}
+    contextData: Record<string, string> = {},
+    phone?: string
   ): Promise<ClaudeResponse> {
+    // Rate limit check
+    if (phone && !this.checkRateLimit(phone)) {
+      throw new Error('RATE_LIMIT_EXCEEDED')
+    }
     let systemPrompt = SYSTEM_PROMPTS[mode]
 
     // CRITICAL FIX: Sanitize all context data before injecting into system prompt

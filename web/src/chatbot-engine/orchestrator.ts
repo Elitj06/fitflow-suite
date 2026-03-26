@@ -95,11 +95,28 @@ export class FitBotOrchestrator {
 
       // 7. Call Claude
       const currentMode = conversation.currentMode as ChatMode
-      const aiResponse = await claudeClient.chat(
-        currentMode === 'HUMAN_HANDOFF' ? 'ATTENDANCE' : currentMode,
-        claudeMessages,
-        contextData
-      )
+      let aiResponse
+      try {
+        aiResponse = await claudeClient.chat(
+          currentMode === 'HUMAN_HANDOFF' ? 'ATTENDANCE' : currentMode,
+          claudeMessages,
+          contextData,
+          sender.phone
+        )
+      } catch (err) {
+        if (err instanceof Error && err.message === 'RATE_LIMIT_EXCEEDED') {
+          const rateLimitMsg = 'Você está enviando muitas mensagens. Aguarde 1 minuto e tente novamente. 🙏'
+          if (org.whatsappInstanceId) {
+            await evolutionClient.sendText({
+              instanceName: org.whatsappInstanceId,
+              to: sender.phone,
+              text: rateLimitMsg,
+            })
+          }
+          return { success: true, responseText: rateLimitMsg }
+        }
+        throw err
+      }
 
       // 8. Parse response for actions
       const { displayMessage, action } = claudeClient.parseResponse(
