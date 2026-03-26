@@ -39,6 +39,9 @@ model Organization {
   stripeCustomerId     String? @map("stripe_customer_id")
   stripeSubscriptionId String? @map("stripe_subscription_id")
 
+  // API Key (for external agent integrations like Laura/OpenClaw)
+  apiKey String? @unique @map("api_key")
+
   // WhatsApp
   whatsappInstanceId String? @map("whatsapp_instance_id")
   whatsappNumber     String? @map("whatsapp_number")

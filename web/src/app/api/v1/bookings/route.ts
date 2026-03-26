@@ -1,0 +1,172 @@
+/**
+ * POST /api/v1/bookings
+ *
+ * Public endpoint for external agents (Laura/OpenClaw) to create bookings
+ * on behalf of clients via WhatsApp or other channels.
+ *
+ * Authentication: x-api-key header
+ */
+
+import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
+import { verifyApiKey } from '@/lib/api-auth'
+import { prisma } from '@/lib/prisma'
+
+const CreateBookingSchema = z.object({
+  phone: z.string().min(8).max(30),
+  name: z.string().min(1).max(200),
+  serviceId: z.string().min(1),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
+  time: z.string().regex(/^\d{2}:\d{2}$/, 'Time must be HH:MM'),
+  trainerId: z.string().optional(),
+  notes: z.string().max(500).optional(),
+})
+
+export async function POST(request: NextRequest) {
+  const ctx = await verifyApiKey(request)
+  if (!ctx) {
+    return NextResponse.json({ error: 'Invalid or missing API key' }, { status: 401 })
+  }
+
+  const { orgId } = ctx
+
+  let rawBody: unknown
+  try {
+    rawBody = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
+
+  const parsed = CreateBookingSchema.safeParse(rawBody)
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.flatten() }, { status: 422 })
+  }
+
+  const { phone, name, serviceId, date, time, trainerId, notes } = parsed.data
+
+  try {
+    // Validate service belongs to org
+    const service = await prisma.service.findFirst({
+      where: { id: serviceId, orgId, isActive: true },
+    })
+    if (!service) {
+      return NextResponse.json({ error: 'Service not found or inactive' }, { status: 404 })
+    }
+
+    // Find or pick a trainer
+    let resolvedTrainerId = trainerId
+    if (!resolvedTrainerId) {
+      // Find first available trainer for this service (via schedule slots)
+      const slot = await prisma.scheduleSlot.findFirst({
+        where: { orgId, serviceId, isActive: true },
+        select: { trainerId: true },
+      })
+      if (slot) {
+        resolvedTrainerId = slot.trainerId
+      } else {
+        // Fall back to any trainer in the org
+        const trainer = await prisma.profile.findFirst({
+          where: { orgId, role: 'TRAINER', isActive: true },
+          select: { id: true },
+        })
+        resolvedTrainerId = trainer?.id
+      }
+    }
+
+    if (!resolvedTrainerId) {
+      return NextResponse.json({ error: 'No trainer available for this service' }, { status: 422 })
+    }
+
+    // Parse date and time into a full datetime
+    const [year, month, day] = date.split('-').map(Number)
+    const [hour, minute] = time.split(':').map(Number)
+    // Treat as America/Sao_Paulo — compute UTC offset (-3)
+    const startsAt = new Date(Date.UTC(year, month - 1, day, hour + 3, minute))
+    const endsAt = new Date(startsAt.getTime() + service.durationMinutes * 60000)
+
+    // Check for trainer conflicts
+    const conflict = await prisma.booking.findFirst({
+      where: {
+        orgId,
+        trainerId: resolvedTrainerId,
+        status: { in: ['PENDING', 'CONFIRMED'] },
+        startsAt: { lt: endsAt },
+        endsAt: { gt: startsAt },
+      },
+    })
+    if (conflict) {
+      return NextResponse.json(
+        { error: 'Time slot unavailable — trainer already booked' },
+        { status: 409 }
+      )
+    }
+
+    // Find or create student profile by phone
+    let student = await prisma.profile.findFirst({
+      where: { orgId, phone: { contains: phone.slice(-9) }, role: 'STUDENT' },
+    })
+
+    if (!student) {
+      // Create a minimal student profile (no Supabase auth — agent-created)
+      // We use a placeholder userId that is unique but not tied to Supabase auth
+      const placeholderUserId = `agent-${orgId}-${phone.replace(/\D/g, '')}`
+      student = await prisma.profile.create({
+        data: {
+          userId: placeholderUserId,
+          orgId,
+          role: 'STUDENT',
+          fullName: name,
+          phone,
+          email: `${phone.replace(/\D/g, '')}@whatsapp.fitflow`,
+        },
+      })
+    }
+
+    // Resolve trainer info for confirmation message
+    const trainer = await prisma.profile.findUnique({
+      where: { id: resolvedTrainerId },
+      select: { fullName: true },
+    })
+
+    // Create the booking
+    const booking = await prisma.booking.create({
+      data: {
+        orgId,
+        serviceId: service.id,
+        trainerId: resolvedTrainerId,
+        studentId: student.id,
+        startsAt,
+        endsAt,
+        status: 'CONFIRMED',
+        source: 'WHATSAPP',
+        notes,
+      },
+    })
+
+    // Build human-friendly confirmation message
+    const dateFormatted = startsAt.toLocaleDateString('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      day: '2-digit',
+      month: '2-digit',
+    })
+    const timeFormatted = startsAt.toLocaleTimeString('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+    const trainerName = trainer?.fullName ?? 'Instrutor'
+    const confirmationMessage = `Agendado! ${service.name}, ${dateFormatted} às ${timeFormatted} com ${trainerName}.`
+
+    return NextResponse.json(
+      {
+        success: true,
+        bookingId: booking.id,
+        confirmationMessage,
+      },
+      { status: 201 }
+    )
+  } catch (error) {
+    console.error('[v1/bookings POST] Error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}

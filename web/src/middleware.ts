@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-const PUBLIC_ROUTES = ['/', '/login', '/register', '/api/webhooks', '/api/auth']
+const PUBLIC_ROUTES = ['/', '/login', '/register', '/api/webhooks', '/api/auth', '/api/v1']
 const ALWAYS_ALLOW = ['/api/auth/callback', '/onboarding']
 
 export async function middleware(request: NextRequest) {
@@ -38,7 +38,8 @@ export async function middleware(request: NextRequest) {
   const isPublic = PUBLIC_ROUTES.some(route =>
     pathname === route ||
     pathname.startsWith('/api/webhooks') ||
-    pathname.startsWith('/api/auth')
+    pathname.startsWith('/api/auth') ||
+    pathname.startsWith('/api/v1')
   )
   if (isPublic) return supabaseResponse
 
