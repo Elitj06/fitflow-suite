@@ -60,6 +60,7 @@ model Organization {
   subscriptions    Subscription[]
   scheduleSlots    ScheduleSlot[]
   announcements    Announcement[]
+  branches         Branch[]
 
   @@map("organizations")
 }
@@ -104,8 +105,11 @@ model Profile {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  branchId String? @map("branch_id")
+
   // Relations
   organization     Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  branch           Branch?           @relation(fields: [branchId], references: [id])
   trainerBookings  Booking[]         @relation("TrainerBookings")
   studentBookings  Booking[]         @relation("StudentBookings")
   checkins         Checkin[]
@@ -144,11 +148,14 @@ model Service {
   isActive    Boolean         @default(true) @map("is_active")
   coinsReward Int             @default(1) @map("coins_reward") // Coins per check-in
 
+  branchId String? @map("branch_id")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  branch       Branch?      @relation(fields: [branchId], references: [id])
   bookings     Booking[]
   scheduleSlots ScheduleSlot[]
 
@@ -176,9 +183,12 @@ model ScheduleSlot {
 
   isActive Boolean @default(true) @map("is_active")
 
+  branchId String? @map("branch_id")
+
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   service      Service      @relation(fields: [serviceId], references: [id], onDelete: Cascade)
   trainer      Profile      @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  branch       Branch?      @relation(fields: [branchId], references: [id])
 
   @@index([orgId, dayOfWeek])
   @@map("schedule_slots")
@@ -207,6 +217,8 @@ model Booking {
 
   notes String?
 
+  branchId String? @map("branch_id")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -216,6 +228,7 @@ model Booking {
   trainer      Profile      @relation("TrainerBookings", fields: [trainerId], references: [id])
   student      Profile      @relation("StudentBookings", fields: [studentId], references: [id])
   checkin      Checkin?
+  branch       Branch?      @relation(fields: [branchId], references: [id])
 
   @@index([orgId, startsAt])
   @@index([trainerId, startsAt])
@@ -252,12 +265,15 @@ model Checkin {
   method      CheckinMethod @default(MANUAL)
   coinsAwarded Int           @default(0) @map("coins_awarded")
 
+  branchId String? @map("branch_id")
+
   createdAt DateTime @default(now()) @map("created_at")
 
   // Relations
   booking      Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   student      Profile      @relation(fields: [studentId], references: [id])
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  branch       Branch?      @relation(fields: [branchId], references: [id])
 
   @@index([orgId, createdAt])
   @@map("checkins")
@@ -394,6 +410,30 @@ enum MessageType {
   CONTACT
   BUTTON_REPLY
   LIST_REPLY
+}
+
+// ============================================
+// BRANCHES (MULTI-UNIDADES)
+// ============================================
+
+model Branch {
+  id        String   @id @default(cuid())
+  orgId     String   @map("org_id")
+  name      String
+  address   String?
+  phone     String?
+  isMain    Boolean  @default(false) @map("is_main")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organization  Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  profiles      Profile[]
+  services      Service[]
+  scheduleSlots ScheduleSlot[]
+  bookings      Booking[]
+  checkins      Checkin[]
+
+  @@map("branches")
 }
 
 // ============================================

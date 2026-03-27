@@ -23,6 +23,7 @@ import {
   BarChart3,
   Gift,
   Megaphone,
+  Building2,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
@@ -85,6 +86,11 @@ const navItems = [
     href: '/admin/integrations',
     icon: Settings,
     badge: 'NOVO',
+  },
+  {
+    label: 'Unidades',
+    href: '/admin/branches',
+    icon: Building2,
   },
   {
     label: 'Configuracoes',
