@@ -50,7 +50,7 @@ const plans = [
       'Integração com sistema legado',
       'Gerente de conta dedicado',
     ],
-    cta: 'Falar com o Tjader',
+    cta: 'Falar com a Laura',
     highlight: false,
   },
 ]
@@ -74,7 +74,7 @@ export default function BillingPage() {
         <div>
           <p className="text-sm font-medium text-yellow-800 dark:text-yellow-300">Período de demonstração ativo</p>
           <p className="text-sm text-yellow-700 dark:text-yellow-400 mt-0.5">
-            Você está usando o FitFlow Suite em modo piloto. Para ativar sua assinatura, escolha um plano abaixo ou entre em contato com o Tjader.
+            Você está usando o FitFlow Suite em modo piloto. Para ativar sua assinatura, escolha um plano abaixo.
           </p>
         </div>
       </div>
@@ -129,7 +129,7 @@ export default function BillingPage() {
 
       {/* Rodapé */}
       <p className="text-center text-sm text-gray-400 dark:text-gray-500">
-        Dúvidas sobre os planos? Fale com o Tjader diretamente no WhatsApp.
+        Dúvidas sobre os planos? Fale com a Laura diretamente no WhatsApp.
       </p>
     </div>
   )
