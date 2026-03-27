@@ -1,8 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { useState } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import {
   LayoutDashboard,
@@ -24,6 +24,7 @@ import {
   Gift,
   Megaphone,
 } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 
 const navItems = [
   {
@@ -98,7 +99,45 @@ export default function DashboardLayout({
   children: React.ReactNode
 }) {
   const pathname = usePathname()
+  const router = useRouter()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [userProfile, setUserProfile] = useState<{ fullName: string; role: string } | null>(null)
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('full_name, role')
+          .eq('user_id', user.id)
+          .single()
+        if (profile) {
+          setUserProfile({ fullName: profile.full_name, role: profile.role })
+        }
+      }
+    }
+    loadProfile()
+  }, [])
+
+  const handleLogout = async () => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/login')
+  }
+
+  const initials = userProfile?.fullName
+    ? userProfile.fullName.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase()
+    : '?'
+
+  const displayName = userProfile?.fullName || 'Carregando...'
+  const displayRole =
+    userProfile?.role === 'ADMIN'
+      ? 'Admin'
+      : userProfile?.role === 'TRAINER'
+      ? 'Trainer'
+      : 'Aluno'
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
@@ -186,15 +225,18 @@ export default function DashboardLayout({
 
         {/* User */}
         <div className="border-t border-gray-100 p-4">
-          <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-gray-100 transition-colors">
+          <button
+            onClick={handleLogout}
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-gray-100 transition-colors group"
+          >
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-100 text-xs font-bold text-brand-700">
-              EL
+              {initials}
             </div>
             <div className="flex-1 text-left">
-              <div className="font-medium text-gray-900 text-sm">Eliandro</div>
-              <div className="text-xs text-gray-500">Admin</div>
+              <div className="font-medium text-gray-900 text-sm">{displayName}</div>
+              <div className="text-xs text-gray-500">{displayRole}</div>
             </div>
-            <ChevronDown className="h-4 w-4 text-gray-400" />
+            <LogOut className="h-4 w-4 text-gray-400 group-hover:text-red-500 transition-colors" />
           </button>
         </div>
       </aside>
