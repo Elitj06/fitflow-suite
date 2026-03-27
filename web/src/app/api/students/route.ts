@@ -12,79 +12,133 @@ const CreateStudentSchema = z.object({
   healthNotes: z.string().max(2000).optional(),
 })
 
-async function getProfile() {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-  return prisma.profile.findUnique({ where: { userId: user.id } })
-}
-
 export async function GET(request: NextRequest) {
-  const profile = await getProfile()
-  if (!profile || profile.role === 'STUDENT') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  try {
+    const supabase = await createServerSupabaseClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-  const { searchParams } = request.nextUrl
-  const search = searchParams.get('search')
-  const source = searchParams.get('source')
-  const status = searchParams.get('status')
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
 
-  const where: any = { orgId: profile.orgId, role: 'STUDENT' }
-  if (search) {
-    where.OR = [
-      { fullName: { contains: search, mode: 'insensitive' } },
-      { email: { contains: search, mode: 'insensitive' } },
-      { phone: { contains: search } },
-    ]
+    // Fetch profile via Supabase REST
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('org_id, role')
+      .eq('user_id', user.id)
+      .single()
+
+    if (profileError || !profile) {
+      console.error('Profile fetch error:', profileError)
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    if (profile.role === 'STUDENT') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { searchParams } = request.nextUrl
+    const search = searchParams.get('search')
+    const source = searchParams.get('source')
+    const status = searchParams.get('status')
+
+    let query = supabase
+      .from('profiles')
+      .select('id, full_name, email, phone, coins_balance, is_active, avatar_url, health_notes, created_at')
+      .eq('org_id', profile.org_id)
+      .eq('role', 'STUDENT')
+      .order('full_name')
+
+    if (search) {
+      query = query.or(`full_name.ilike.%${search}%,email.ilike.%${search}%`)
+    }
+
+    if (status === 'active') {
+      query = query.eq('is_active', true)
+    } else if (status === 'inactive') {
+      query = query.eq('is_active', false)
+    }
+
+    if (source === 'wellhub') {
+      query = query.ilike('health_notes', '%Wellhub%')
+    } else if (source === 'totalpass') {
+      query = query.ilike('health_notes', '%TotalPass%')
+    }
+
+    const { data: students, error: queryError } = await query
+
+    if (queryError) {
+      console.error('Students query error:', queryError)
+      return NextResponse.json({ error: 'Query failed' }, { status: 500 })
+    }
+
+    return NextResponse.json((students || []).map(s => ({
+      id: s.id,
+      fullName: s.full_name,
+      email: s.email,
+      phone: s.phone,
+      coinsBalance: s.coins_balance,
+      isActive: s.is_active,
+      avatarUrl: s.avatar_url,
+      healthNotes: s.health_notes,
+      createdAt: s.created_at,
+      _count: { studentBookings: 0, checkins: 0 },
+    })))
+  } catch (e) {
+    console.error('Students GET error:', e)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-  if (status === 'active') where.isActive = true
-  if (status === 'inactive') where.isActive = false
-  if (source === 'wellhub') where.healthNotes = { contains: 'Wellhub' }
-  if (source === 'totalpass') where.healthNotes = { contains: 'TotalPass' }
-
-  const students = await prisma.profile.findMany({
-    where,
-    select: {
-      id: true, fullName: true, email: true, phone: true,
-      coinsBalance: true, isActive: true, avatarUrl: true,
-      healthNotes: true, createdAt: true,
-      _count: { select: { studentBookings: true, checkins: true } },
-    },
-    orderBy: { fullName: 'asc' },
-  })
-
-  return NextResponse.json(students)
 }
 
 export async function POST(request: NextRequest) {
-  const profile = await getProfile()
-  if (!profile || profile.role === 'STUDENT') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  try {
+    const supabase = await createServerSupabaseClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-  const rawBody = await request.json()
-  const parsed = CreateStudentSchema.safeParse(rawBody)
-  if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.flatten() }, { status: 422 })
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('org_id, role')
+      .eq('user_id', user.id)
+      .single()
+
+    if (profileError || !profile || profile.role === 'STUDENT') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const rawBody = await request.json()
+    const parsed = CreateStudentSchema.safeParse(rawBody)
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.flatten() }, { status: 422 })
+    }
+    const body = parsed.data
+
+    // Check if student already exists
+    const existing = await prisma.profile.findFirst({
+      where: { orgId: profile.org_id, email: body.email, role: 'STUDENT' },
+    })
+    if (existing) return NextResponse.json({ error: 'Aluno com este email ja existe' }, { status: 409 })
+
+    const student = await prisma.profile.create({
+      data: {
+        userId: `manual_${Date.now()}`,
+        orgId: profile.org_id,
+        role: 'STUDENT',
+        fullName: body.fullName,
+        email: body.email,
+        phone: body.phone || null,
+        birthDate: body.birthDate ? new Date(body.birthDate) : null,
+        emergencyContact: body.emergencyContact || null,
+        healthNotes: body.healthNotes || null,
+      },
+    })
+
+    return NextResponse.json(student, { status: 201 })
+  } catch (e) {
+    console.error('Students POST error:', e)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-  const body = parsed.data
-
-  // Check if student already exists
-  const existing = await prisma.profile.findFirst({
-    where: { orgId: profile.orgId, email: body.email, role: 'STUDENT' },
-  })
-  if (existing) return NextResponse.json({ error: 'Aluno com este email ja existe' }, { status: 409 })
-
-  const student = await prisma.profile.create({
-    data: {
-      userId: `manual_${Date.now()}`,
-      orgId: profile.orgId,
-      role: 'STUDENT',
-      fullName: body.fullName,
-      email: body.email,
-      phone: body.phone || null,
-      birthDate: body.birthDate ? new Date(body.birthDate) : null,
-      emergencyContact: body.emergencyContact || null,
-      healthNotes: body.healthNotes || null,
-    },
-  })
-
-  return NextResponse.json(student, { status: 201 })
 }

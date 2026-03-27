@@ -1,27 +1,49 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 
 export async function GET() {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  try {
+    const supabase = await createServerSupabaseClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-  const profile = await prisma.profile.findUnique({
-    where: { userId: user.id },
-    include: { organization: { select: { name: true, plan: true, coinsEnabled: true } } },
-  })
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
 
-  if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('id, full_name, email, role, org_id, coins_balance, avatar_url')
+      .eq('user_id', user.id)
+      .single()
 
-  return NextResponse.json({
-    id: profile.id,
-    fullName: profile.fullName,
-    email: profile.email,
-    role: profile.role,
-    avatarUrl: profile.avatarUrl,
-    coinsBalance: profile.coinsBalance,
-    orgId: profile.orgId,
-    organization: profile.organization,
-  })
+    if (error || !profile) {
+      console.error('Profile fetch error:', error)
+      return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+    }
+
+    // Fetch org info separately
+    const { data: org } = await supabase
+      .from('organizations')
+      .select('name, plan, coins_enabled')
+      .eq('id', profile.org_id)
+      .single()
+
+    return NextResponse.json({
+      id: profile.id,
+      fullName: profile.full_name,
+      email: profile.email,
+      role: profile.role,
+      orgId: profile.org_id,
+      coinsBalance: profile.coins_balance,
+      avatarUrl: profile.avatar_url,
+      organization: org ? {
+        name: org.name,
+        plan: org.plan,
+        coinsEnabled: org.coins_enabled,
+      } : null,
+    })
+  } catch (e) {
+    console.error('Profile GET error:', e)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
 }
