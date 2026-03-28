@@ -24,6 +24,7 @@ import {
   Gift,
   Megaphone,
   Building2,
+  Dumbbell,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
@@ -91,6 +92,11 @@ const navItems = [
     label: 'Unidades',
     href: '/admin/branches',
     icon: Building2,
+  },
+  {
+    label: 'Serviços',
+    href: '/admin/services',
+    icon: Dumbbell,
   },
   {
     label: 'Configuracoes',

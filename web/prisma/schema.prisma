@@ -147,6 +147,8 @@ model Service {
   category    ServiceCategory @default(PERSONAL)
   isActive    Boolean         @default(true) @map("is_active")
   coinsReward Int             @default(1) @map("coins_reward") // Coins per check-in
+  location  String? // local: studio, praia, condomínio, praça, etc.
+  modality  String? // modalidade customizada
 
   branchId String? @map("branch_id")
 
