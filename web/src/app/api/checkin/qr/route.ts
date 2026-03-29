@@ -26,7 +26,8 @@ export async function GET(request: NextRequest) {
   if (!booking) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   // Generate HMAC-signed QR token to prevent forgery
-  const secret = process.env.QR_SECRET || 'fitflow-qr-secret'
+  const secret = process.env.QR_SECRET
+  if (!secret) throw new Error('QR_SECRET environment variable is required')
   const timestamp = Math.floor(Date.now() / 1000)
   const hmac = crypto.createHmac('sha256', secret).update(`${booking.id}:${timestamp}`).digest('hex')
   const qrData = `${booking.id}:${timestamp}:${hmac}`

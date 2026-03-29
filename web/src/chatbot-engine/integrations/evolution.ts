@@ -64,7 +64,9 @@ export class EvolutionClient {
   private apiKey: string
 
   constructor() {
-    this.baseUrl = process.env.EVOLUTION_API_URL || 'http://localhost:8080'
+    const evolutionUrl = process.env.EVOLUTION_API_URL
+    if (!evolutionUrl) throw new Error('EVOLUTION_API_URL environment variable is required')
+    this.baseUrl = evolutionUrl
     this.apiKey = process.env.EVOLUTION_API_KEY || ''
   }
 
