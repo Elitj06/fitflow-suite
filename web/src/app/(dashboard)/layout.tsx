@@ -19,7 +19,6 @@ import {
   LogOut,
   ChevronDown,
   Bell,
-  Search,
   BarChart3,
   Gift,
   Megaphone,
@@ -264,14 +263,7 @@ export default function DashboardLayout({
             >
               <Menu className="h-5 w-5 text-gray-600" />
             </button>
-            <div className="relative hidden md:block">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Buscar alunos, aulas..."
-                className="h-9 w-64 rounded-lg border border-gray-200 bg-gray-50 pl-9 pr-4 text-sm text-gray-700 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-100"
-              />
-            </div>
+            {/* Search bar: TODO - implementar busca global */}
           </div>
           <div className="flex items-center gap-3">
             <button className="relative rounded-lg p-2 hover:bg-gray-100 transition-colors">
