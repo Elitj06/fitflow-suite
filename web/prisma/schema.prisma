@@ -101,6 +101,10 @@ model Profile {
   certifications String[] @default([])
   hourlyRate  Decimal? @map("hourly_rate") @db.Decimal(10, 2)
 
+  // Integration source tracking
+  source     String? @default("direct") // "direct" | "wellhub" | "totalpass" | "import"
+  externalId String? @map("external_id") // ID externo da integração
+
   isActive  Boolean  @default(true) @map("is_active")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

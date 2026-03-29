@@ -92,6 +92,8 @@ async function handleCheckin(payload: WellhubCheckinPayload, orgId: string) {
         email: user.email || `wellhub_${user.unique_identifier}@placeholder.com`,
         phone: user.unique_identifier,
         healthNotes: 'Aluno via Wellhub',
+        source: 'wellhub',
+        externalId: user.unique_identifier,
       },
     })
 

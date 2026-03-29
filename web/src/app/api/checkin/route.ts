@@ -80,8 +80,9 @@ export async function POST(request: NextRequest) {
   })
 
   // If student is a Wellhub user, report the check-in event
-  if (booking.student.phone?.startsWith('wellhub_') || booking.student.healthNotes?.includes('Wellhub')) {
-    const wellhubUserId = booking.student.phone?.replace('wellhub_', '') || booking.student.userId
+  const isWellhubBooking = booking.student.source === 'wellhub'
+  if (isWellhubBooking) {
+    const wellhubUserId = booking.student.externalId || booking.student.userId
     await wellhubClient.reportCheckin(wellhubUserId, new Date().toISOString())
   }
 
