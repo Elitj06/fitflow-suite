@@ -1,19 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { prisma } from '@/lib/prisma'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
-
-async function getProfile() {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-  return prisma.profile.findUnique({ where: { userId: user.id } })
-}
+import { getAuthenticatedProfile } from '@/lib/api-auth'
 
 // GET /api/checkin/qr?bookingId=xxx
 // Returns the QR code data for a booking
 export async function GET(request: NextRequest) {
-  const profile = await getProfile()
+  const profile = await getAuthenticatedProfile()
   if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const bookingId = request.nextUrl.searchParams.get('bookingId')

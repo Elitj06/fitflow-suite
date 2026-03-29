@@ -1,14 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { getAuthenticatedProfile } from '@/lib/api-auth'
 import { wellhubClient } from '@/lib/wellhub/client'
-
-async function getProfile() {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-  return prisma.profile.findUnique({ where: { userId: user.id } })
-}
 
 /**
  * POST /api/checkin
@@ -17,7 +10,7 @@ async function getProfile() {
  * Body: { bookingId, method: 'QR_CODE' | 'MANUAL' | 'WHATSAPP' }
  */
 export async function POST(request: NextRequest) {
-  const profile = await getProfile()
+  const profile = await getAuthenticatedProfile()
   if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if (profile.role === 'STUDENT') return NextResponse.json({ error: 'Apenas trainers podem registrar check-in' }, { status: 403 })
 
@@ -110,7 +103,7 @@ export async function POST(request: NextRequest) {
  * Get today's check-in status for all bookings
  */
 export async function GET(request: NextRequest) {
-  const profile = await getProfile()
+  const profile = await getAuthenticatedProfile()
   if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const date = request.nextUrl.searchParams.get('date') || new Date().toISOString().split('T')[0]

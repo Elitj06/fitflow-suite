@@ -5,6 +5,7 @@
 
 import { type NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { createServerSupabaseClient } from '@/lib/supabase/server'
 
 export interface ApiKeyContext {
   orgId: string
@@ -31,4 +32,20 @@ export async function verifyApiKey(
   } catch {
     return null
   }
+}
+
+/**
+ * Returns the authenticated user's Profile (with organization) or null.
+ * Centralizes the repeated getProfile() pattern across API routes.
+ */
+export async function getAuthenticatedProfile() {
+  const supabase = await createServerSupabaseClient()
+  const { data: { user }, error } = await supabase.auth.getUser()
+  if (error || !user) return null
+
+  const profile = await prisma.profile.findUnique({
+    where: { userId: user.id },
+    include: { organization: true },
+  })
+  return profile
 }

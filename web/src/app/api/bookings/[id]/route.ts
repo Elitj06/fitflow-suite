@@ -1,13 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
-
-async function getProfile() {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-  return prisma.profile.findUnique({ where: { userId: user.id } })
-}
+import { getAuthenticatedProfile } from '@/lib/api-auth'
 
 // Statuses a STUDENT is allowed to set on their own bookings
 const STUDENT_ALLOWED_STATUSES = ['CANCELLED'] as const
@@ -16,7 +9,7 @@ const STUDENT_ALLOWED_STATUSES = ['CANCELLED'] as const
 const STAFF_ALLOWED_STATUSES = ['PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED', 'NO_SHOW'] as const
 
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
-  const profile = await getProfile()
+  const profile = await getAuthenticatedProfile()
   if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json()

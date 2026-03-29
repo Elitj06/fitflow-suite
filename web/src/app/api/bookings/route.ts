@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { getAuthenticatedProfile } from '@/lib/api-auth'
 
 const CreateBookingSchema = z.object({
   serviceId: z.string().min(1),
@@ -11,18 +11,11 @@ const CreateBookingSchema = z.object({
   notes: z.string().max(1000).optional(),
 })
 
-async function getProfile() {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-  return prisma.profile.findUnique({ where: { userId: user.id }, include: { organization: true } })
-}
-
 /**
  * GET /api/bookings?date=2026-03-20&status=confirmed
  */
 export async function GET(request: NextRequest) {
-  const profile = await getProfile()
+  const profile = await getAuthenticatedProfile()
   if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { searchParams } = request.nextUrl
@@ -72,7 +65,7 @@ export async function GET(request: NextRequest) {
  * POST /api/bookings — Create a new booking
  */
 export async function POST(request: NextRequest) {
-  const profile = await getProfile()
+  const profile = await getAuthenticatedProfile()
   if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const rawBody = await request.json()

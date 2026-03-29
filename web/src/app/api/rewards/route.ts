@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { getAuthenticatedProfile } from '@/lib/api-auth'
 
 const CreateRewardSchema = z.object({
   name: z.string().min(1).max(100),
@@ -11,15 +11,8 @@ const CreateRewardSchema = z.object({
   imageUrl: z.string().url().optional().or(z.literal('')),
 })
 
-async function getProfile() {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-  return prisma.profile.findUnique({ where: { userId: user.id } })
-}
-
 export async function GET(request: NextRequest) {
-  const profile = await getProfile()
+  const profile = await getAuthenticatedProfile()
   if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const rewards = await prisma.reward.findMany({
@@ -31,7 +24,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const profile = await getProfile()
+  const profile = await getAuthenticatedProfile()
   if (!profile || profile.role === 'STUDENT') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const rawBody = await request.json()
@@ -57,7 +50,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
-  const profile = await getProfile()
+  const profile = await getAuthenticatedProfile()
   if (!profile || profile.role === 'STUDENT') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json()
