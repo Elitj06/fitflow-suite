@@ -99,17 +99,17 @@ async function exportBookings(from: Date, to: Date) {
 
 async function exportCheckins(from: Date, to: Date) {
   const data = await prisma.checkin.findMany({
-    where: { checkedAt: { gte: from, lt: to } },
+    where: { createdAt: { gte: from, lt: to } },
   });
 
   const rows = data.map((c) => ({
     id: c.id,
-    booking_id: (c as any).bookingId ?? null,
+    booking_id: c.bookingId ?? null,
     student_id: c.studentId ?? null,
-    org_id: (c as any).orgId ?? null,
-    branch_id: (c as any).branchId ?? null,
-    checked_at: c.checkedAt?.toISOString() ?? null,
-    source: (c as any).source ?? null,
+    org_id: c.orgId ?? null,
+    branch_id: c.branchId ?? null,
+    checked_at: c.createdAt?.toISOString() ?? null,
+    source: c.method ?? null,
   }));
 
   await upsertRows("checkins", rows);
