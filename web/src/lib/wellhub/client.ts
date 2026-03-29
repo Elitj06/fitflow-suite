@@ -157,7 +157,7 @@ export class WellhubClient {
         return false
       }
 
-      console.log(`[Wellhub] Event reported: ${event.event_type} for user ${event.user_id}`)
+      console.log('[Wellhub] Event reported', { type: event.event_type })
       return true
     } catch (error) {
       console.error('[Wellhub] Event report error:', error)

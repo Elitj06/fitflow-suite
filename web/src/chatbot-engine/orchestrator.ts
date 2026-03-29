@@ -460,7 +460,7 @@ export class FitBotOrchestrator {
             source: 'WHATSAPP',
           },
         })
-        console.log(`[BOOKING] Created for student ID ${student.id} at ${startsAt}`)
+        console.log('[BOOKING] Created', { bookingId: booking.id })
 
         // Send WhatsApp confirmation
         const org = await prisma.organization.findUnique({ where: { id: orgId } })

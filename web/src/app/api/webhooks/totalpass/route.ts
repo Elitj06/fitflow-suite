@@ -159,7 +159,7 @@ async function handleTotalPassCheckin(
     await totalPassClient.confirmCheckin(payload.token, config.apiKey, config.integrationCode)
   }
 
-  console.log(`[TotalPass] Check-in processed: ${payload.user_name} (${payload.plan_name})`)
+  console.log('[TotalPass] Check-in processed', { plan: payload.plan_name })
   return NextResponse.json({ status: 'ok', action: 'checkin_confirmed' })
 }
 
