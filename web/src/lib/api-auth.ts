@@ -22,6 +22,33 @@ export async function verifyApiKey(
   if (!key || key.trim() === '') return null
 
   try {
+    // Try Supabase REST first (more reliable in serverless/edge)
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+    if (supabaseUrl && serviceKey) {
+      const res = await fetch(
+        `${supabaseUrl}/rest/v1/organizations?api_key=eq.${encodeURIComponent(key)}&select=id`,
+        {
+          headers: {
+            'apikey': serviceKey,
+            'Authorization': `Bearer ${serviceKey}`,
+            'Content-Type': 'application/json',
+          },
+          cache: 'no-store',
+        }
+      )
+
+      if (res.ok) {
+        const data = await res.json()
+        if (Array.isArray(data) && data.length > 0) {
+          return { orgId: data[0].id }
+        }
+        return null
+      }
+    }
+
+    // Fallback: Prisma
     const org = await prisma.organization.findFirst({
       where: { apiKey: key },
       select: { id: true },
