@@ -1,12 +1,3 @@
-/**
- * GET /api/v1/availability
- *
- * Public endpoint for external agents (Laura/OpenClaw) to query
- * available schedule slots for the next 7 days.
- *
- * Authentication: x-api-key header
- */
-
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyApiKey } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
@@ -20,81 +11,86 @@ export async function GET(request: NextRequest) {
   const { orgId } = ctx
 
   try {
-    const now = new Date()
-    const sevenDaysLater = new Date(now)
-    sevenDaysLater.setDate(sevenDaysLater.getDate() + 7)
-
-    // Fetch active schedule slots with service and trainer info
-    const slots = await prisma.scheduleSlot.findMany({
+    // Buscar serviços ativos da organização
+    const services = await prisma.service.findMany({
       where: { orgId, isActive: true },
-      include: {
-        service: { select: { id: true, name: true, durationMinutes: true } },
-        trainer: { select: { fullName: true } },
-      },
+      select: { id: true, name: true, durationMinutes: true },
     })
 
-    if (slots.length === 0) {
-      return NextResponse.json({ available: [] })
+    // Buscar slots de agenda
+    let slots: Array<{
+      id: string
+      dayOfWeek: number
+      startTime: string
+      serviceId: string
+      service: { id: string; name: string; durationMinutes: number }
+    }> = []
+
+    try {
+      const rawSlots = await prisma.scheduleSlot.findMany({
+        where: { orgId, isActive: true },
+        select: {
+          id: true,
+          dayOfWeek: true,
+          startTime: true,
+          serviceId: true,
+          service: { select: { id: true, name: true, durationMinutes: true } },
+        },
+      })
+      slots = rawSlots
+    } catch {
+      // Sem slots cadastrados — retornar serviços disponíveis
     }
 
-    // Fetch existing bookings in the next 7 days to detect conflicts
-    const bookings = await prisma.booking.findMany({
-      where: {
-        orgId,
-        startsAt: { gte: now, lte: sevenDaysLater },
-        status: { in: ['PENDING', 'CONFIRMED'] },
-      },
-      select: { startsAt: true, trainerId: true, serviceId: true },
-    })
+    if (slots.length === 0) {
+      // Sem horários cadastrados ainda — retornar serviços para orientar o cliente
+      return NextResponse.json({
+        available: [],
+        services: services.map(s => ({ id: s.id, name: s.name, duration: s.durationMinutes })),
+        message: 'Horários específicos não cadastrados. Entre em contato para agendar.',
+      })
+    }
 
-    const bookedKeys = new Set(
-      bookings.map(
-        (b) =>
-          `${b.trainerId}-${b.serviceId}-${b.startsAt.toISOString().substring(0, 16)}`
-      )
-    )
-
-    // Build list of available slots for the next 7 days
+    // Gerar disponibilidade para os próximos 7 dias
+    const now = new Date()
     const available: Array<{
       date: string
       time: string
       service: string
       serviceId: string
-      trainer: string
       slotId: string
     }> = []
+
+    // Buscar bookings existentes
+    const sevenDaysLater = new Date(now)
+    sevenDaysLater.setDate(sevenDaysLater.getDate() + 7)
+
+    const bookings = await prisma.booking.findMany({
+      where: { orgId, startsAt: { gte: now, lte: sevenDaysLater }, status: { in: ['PENDING', 'CONFIRMED'] } },
+      select: { startsAt: true, serviceId: true },
+    })
+
+    const bookedKeys = new Set(bookings.map(b => `${b.serviceId}-${b.startsAt.toISOString().substring(0, 16)}`))
 
     for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
       const date = new Date(now)
       date.setDate(date.getDate() + dayOffset)
       const dayOfWeek = date.getDay()
-
-      const daySlots = slots.filter((s) => s.dayOfWeek === dayOfWeek)
+      const daySlots = slots.filter(s => s.dayOfWeek === dayOfWeek)
 
       for (const slot of daySlots) {
         const slotDate = new Date(date)
-        const [slotHour, slotMinute] = slot.startTime.split(':').map(Number)
-        slotDate.setHours(slotHour, slotMinute, 0, 0)
-
-        // Skip past slots
+        const [h, m] = slot.startTime.split(':').map(Number)
+        slotDate.setHours(h, m, 0, 0)
         if (slotDate <= now) continue
 
-        const key = `${slot.trainerId}-${slot.serviceId}-${slotDate.toISOString().substring(0, 16)}`
+        const key = `${slot.serviceId}-${slotDate.toISOString().substring(0, 16)}`
         if (!bookedKeys.has(key)) {
-          // Format date as YYYY-MM-DD in org's local time (America/Sao_Paulo)
-          const dateStr = slotDate.toLocaleDateString('en-CA', {
-            timeZone: 'America/Sao_Paulo',
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-          })
-
           available.push({
-            date: dateStr,
+            date: slotDate.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }),
             time: slot.startTime,
             service: slot.service.name,
             serviceId: slot.service.id,
-            trainer: slot.trainer.fullName,
             slotId: slot.id,
           })
         }
@@ -103,7 +99,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ available })
   } catch (error) {
-    console.error('[v1/availability] Error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('[v1/availability]', error)
+    return NextResponse.json({ error: 'Internal server error', detail: String(error) }, { status: 500 })
   }
 }
