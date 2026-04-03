@@ -45,11 +45,33 @@ export async function GET(request: NextRequest) {
       const finalToken = longTokenData.access_token || tokenData.access_token
       const userId = tokenData.user_id
 
-      // Send token via Evolution API to Eliandro's WhatsApp
+      // Save token to Supabase for reliable retrieval
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      if (supabaseUrl && supabaseKey) {
+        try {
+          await fetch(`${supabaseUrl}/rest/v1/instagram_tokens`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': supabaseKey,
+              'Authorization': `Bearer ${supabaseKey}`,
+              'Prefer': 'resolution=merge-duplicates'
+            },
+            body: JSON.stringify({
+              user_id: String(userId),
+              access_token: finalToken,
+              created_at: new Date().toISOString()
+            })
+          })
+        } catch (_) { /* ignore */ }
+      }
+
+      // Try to send via Evolution API
       try {
-        const evolutionUrl = 'http://localhost:8080'
-        const evolutionKey = 'minha-chave-secreta'
-        const waMsgBody = `✅ *Instagram autorizado!*\n\n*User ID:* ${userId}\n\n*Token (60 dias):*\n\`\`\`${finalToken}\`\`\`\n\n_Token enviado automaticamente — não precisa copiar da tela._`
+        const evolutionUrl = process.env.EVOLUTION_API_URL || 'http://localhost:8080'
+        const evolutionKey = process.env.EVOLUTION_API_KEY || 'minha-chave-secreta'
+        const waMsgBody = `✅ *Instagram autorizado!*\n\n*User ID:* ${userId}\n\n*Token (60 dias):*\n${finalToken}\n\n_Salvo no Supabase — TJ já pode buscar._`
         await fetch(`${evolutionUrl}/message/sendText/orion`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'apikey': evolutionKey },
