@@ -45,14 +45,29 @@ export async function GET(request: NextRequest) {
       const finalToken = longTokenData.access_token || tokenData.access_token
       const userId = tokenData.user_id
 
+      // Send token via Evolution API to Eliandro's WhatsApp
+      try {
+        const evolutionUrl = 'http://localhost:8080'
+        const evolutionKey = 'minha-chave-secreta'
+        const waMsgBody = `✅ *Instagram autorizado!*\n\n*User ID:* ${userId}\n\n*Token (60 dias):*\n\`\`\`${finalToken}\`\`\`\n\n_Token enviado automaticamente — não precisa copiar da tela._`
+        await fetch(`${evolutionUrl}/message/sendText/orion`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'apikey': evolutionKey },
+          body: JSON.stringify({ number: '5521986053944', text: waMsgBody })
+        })
+      } catch (_) { /* silently ignore WA send errors */ }
+
       return new NextResponse(`
         <html><body style="font-family:sans-serif;text-align:center;padding:50px;background:#f0f0f0">
           <h2>✅ Instagram autorizado com sucesso!</h2>
           <p><strong>User ID:</strong> ${userId}</p>
-          <p><strong>Token (60 dias):</strong></p>
-          <textarea style="width:90%;height:80px;font-size:11px;padding:8px">${finalToken}</textarea>
-          <br><br>
-          <p style="color:#666">Copie o token acima e envie para o TJ.</p>
+          <p style="color:#28a745"><strong>Token enviado via WhatsApp automaticamente!</strong></p>
+          <br>
+          <p style="color:#666;font-size:13px">O token completo foi enviado para o seu WhatsApp. Não precisa copiar da tela.</p>
+          <details style="margin-top:20px">
+            <summary style="cursor:pointer;color:#666">Ver token (backup)</summary>
+            <textarea style="width:90%;height:100px;font-size:10px;padding:8px;margin-top:10px;word-break:break-all">${finalToken}</textarea>
+          </details>
         </body></html>
       `, { headers: { 'Content-Type': 'text/html' } })
     }
