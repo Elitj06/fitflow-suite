@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
       } else {
         // Fall back to any trainer in the org
         const trainer = await prisma.profile.findFirst({
-          where: { orgId, role: 'TRAINER', isActive: true },
+          where: { orgId, role: { in: ['TRAINER', 'ADMIN'] }, isActive: true },
           select: { id: true },
         })
         resolvedTrainerId = trainer?.id
