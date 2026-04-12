@@ -71,25 +71,26 @@ async function handleCheckin(payload: WellhubCheckinPayload, orgId: string) {
   const { user, checkin_datetime } = payload
 
   // Find or create the student profile
+  // FIX: Busca por perfil com orgId + validação de email vazio para evitar vazamento entre orgs
   let profile = await prisma.profile.findFirst({
     where: {
       orgId,
       OR: [
-        { email: user.email || '' },
+        ...(user.email ? [{ email: user.email }] : []),
         { phone: user.unique_identifier },
       ],
     },
   })
 
   if (!profile) {
-    // Auto-create student from Wellhub check-in
+    // Auto-create student from Wellhub check-in (userId com escopo de org)
     profile = await prisma.profile.create({
       data: {
-        userId: `wellhub_${user.unique_identifier}`,
+        userId: `wellhub_${orgId}_${user.unique_identifier}`,
         orgId,
         role: 'STUDENT',
         fullName: user.name || 'Aluno Wellhub',
-        email: user.email || `wellhub_${user.unique_identifier}@placeholder.com`,
+        email: user.email || `wellhub_${user.unique_identifier}_${orgId.slice(0,8)}@placeholder.fitflow`,
         phone: user.unique_identifier,
         healthNotes: 'Aluno via Wellhub',
         source: 'wellhub',

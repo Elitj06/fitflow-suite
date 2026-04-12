@@ -78,10 +78,29 @@ export async function POST(request: NextRequest) {
     }
 
     // Parse date and time into a full datetime
+    // FIX: Usar Intl para resolver o offset correto de America/Sao_Paulo
+    // incluindo horário de verão automaticamente
     const [year, month, day] = date.split('-').map(Number)
     const [hour, minute] = time.split(':').map(Number)
-    // Treat as America/Sao_Paulo — compute UTC offset (-3)
-    const startsAt = new Date(Date.UTC(year, month - 1, day, hour + 3, minute))
+
+    // Criar a data como local em São Paulo usando o formato ISO
+    // e deixar o runtime resolver o offset correto (incluindo DST)
+    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`
+
+    // Calcular o offset real de São Paulo para esta data específica
+    const tempDate = new Date(dateStr + 'Z') // UTC temporário
+    const spFormatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Sao_Paulo',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      hour12: false,
+    })
+    const spParts = spFormatter.formatToParts(tempDate)
+    const spHour = parseInt(spParts.find(p => p.type === 'hour')?.value || '0')
+    const utcHour = tempDate.getUTCHours()
+    const offsetHours = spHour - utcHour
+    // O offset real é a diferença; para converter SP->UTC, subtraímos o offset
+    const startsAt = new Date(Date.UTC(year, month - 1, day, hour - offsetHours, minute))
     const endsAt = new Date(startsAt.getTime() + service.durationMinutes * 60000)
 
     // Check for trainer conflicts

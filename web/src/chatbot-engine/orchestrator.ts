@@ -448,7 +448,7 @@ export class FitBotOrchestrator {
 
       // Create booking
       if (student) {
-        await prisma.booking.create({
+        const newBooking = await prisma.booking.create({
           data: {
             orgId,
             serviceId: service.id,
@@ -460,7 +460,7 @@ export class FitBotOrchestrator {
             source: 'WHATSAPP',
           },
         })
-        console.log('[BOOKING] Created', { bookingId: booking.id })
+        console.log('[BOOKING] Created', { bookingId: newBooking.id })
 
         // Send WhatsApp confirmation
         const org = await prisma.organization.findUnique({ where: { id: orgId } })
@@ -483,12 +483,18 @@ export class FitBotOrchestrator {
             `🕐 *Horário:* ${formattedTime}\n\n` +
             `Em caso de imprevistos, nos avise com antecedência. Até lá! 💪`
 
-          await evolutionClient.sendText({
-            instanceName: org.whatsappInstanceId,
-            to: phone,
-            text: confirmationMsg,
-          })
+          try {
+            await evolutionClient.sendText({
+              instanceName: org.whatsappInstanceId,
+              to: phone,
+              text: confirmationMsg,
+            })
+          } catch (sendErr) {
+            console.error('[BOOKING] Failed to send WhatsApp confirmation:', sendErr)
+          }
         }
+      } else {
+        console.log('[BOOKING] Student not found for phone, booking skipped')
       }
     } catch (error) {
       console.error('[BOOKING] Error creating booking:', error)

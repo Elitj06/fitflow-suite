@@ -121,38 +121,50 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Horario indisponivel — ja existe agendamento neste periodo' }, { status: 409 })
   }
 
-  // Check capacity for group classes
-  if (service.maxCapacity > 1) {
-    const currentBookings = await prisma.booking.count({
-      where: {
-        orgId: profile.orgId,
-        serviceId,
-        startsAt: start,
-        status: { in: ['PENDING', 'CONFIRMED'] },
-      },
+  // Check capacity for group classes AND create booking atomically
+  // Uses a transaction to prevent race conditions (overbooking)
+  try {
+    const booking = await prisma.$transaction(async (tx) => {
+      if (service.maxCapacity > 1) {
+        const currentBookings = await tx.booking.count({
+          where: {
+            orgId: profile.orgId,
+            serviceId,
+            startsAt: start,
+            status: { in: ['PENDING', 'CONFIRMED'] },
+          },
+        })
+        if (currentBookings >= service.maxCapacity) {
+          throw new Error('CAPACITY_EXCEEDED')
+        }
+      }
+
+      return tx.booking.create({
+        data: {
+          orgId: profile.orgId,
+          serviceId,
+          trainerId,
+          studentId: targetStudentId,
+          startsAt: start,
+          endsAt: end,
+          status: 'CONFIRMED',
+          source: 'WEB',
+          notes,
+        },
+        include: {
+          service: { select: { name: true } },
+          student: { select: { fullName: true } },
+        },
+      })
+    }, {
+      isolationLevel: 'Serializable',
     })
-    if (currentBookings >= service.maxCapacity) {
+
+    return NextResponse.json(booking, { status: 201 })
+  } catch (txError: any) {
+    if (txError.message === 'CAPACITY_EXCEEDED') {
       return NextResponse.json({ error: 'Aula lotada — capacidade maxima atingida' }, { status: 409 })
     }
+    throw txError
   }
-
-  const booking = await prisma.booking.create({
-    data: {
-      orgId: profile.orgId,
-      serviceId,
-      trainerId,
-      studentId: targetStudentId,
-      startsAt: start,
-      endsAt: end,
-      status: 'CONFIRMED',
-      source: 'WEB',
-      notes,
-    },
-    include: {
-      service: { select: { name: true } },
-      student: { select: { fullName: true } },
-    },
-  })
-
-  return NextResponse.json(booking, { status: 201 })
 }

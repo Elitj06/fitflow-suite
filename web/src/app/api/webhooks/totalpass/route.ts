@@ -73,11 +73,12 @@ async function handleTotalPassCheckin(
   }
 
   // 2. Find or create student profile
+  // FIX: Busca por perfil com orgId explícito para evitar vazamento entre organizações
   let profile = await prisma.profile.findFirst({
     where: {
       orgId,
       OR: [
-        { email: payload.user_email || '' },
+        ...(payload.user_email ? [{ email: payload.user_email }] : []),
         { phone: payload.user_id },
       ],
     },
@@ -86,11 +87,11 @@ async function handleTotalPassCheckin(
   if (!profile) {
     profile = await prisma.profile.create({
       data: {
-        userId: `totalpass_${payload.user_id}`,
+        userId: `totalpass_${orgId}_${payload.user_id}`,
         orgId,
         role: 'STUDENT',
         fullName: payload.user_name || 'Aluno TotalPass',
-        email: payload.user_email || `totalpass_${payload.user_id}@placeholder.com`,
+        email: payload.user_email || `totalpass_${payload.user_id}_${orgId.slice(0,8)}@placeholder.fitflow`,
         phone: payload.user_id,
         healthNotes: `TotalPass: ${payload.plan_name}`,
       },
@@ -189,11 +190,11 @@ async function handleTotalPassBooking(
         if (!profile) {
           profile = await prisma.profile.create({
             data: {
-              userId: `totalpass_${payload.user_id}`,
+              userId: `totalpass_${orgId}_${payload.user_id}`,
               orgId,
               role: 'STUDENT',
               fullName: payload.user_name,
-              email: payload.user_email || `totalpass_${payload.user_id}@placeholder.com`,
+              email: payload.user_email || `totalpass_${payload.user_id}_${orgId.slice(0,8)}@placeholder.fitflow`,
               phone: payload.user_id,
             },
           })

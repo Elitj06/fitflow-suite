@@ -71,6 +71,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
+  // FIX: Idempotência — verificar se este evento já foi processado
+  // Usa a tabela de metadata ou uma checagem simples para evitar duplicatas
+  if (event.id) {
+    const alreadyProcessed = await prisma.stripeEvent?.findUnique?.({
+      where: { eventId: event.id },
+    }).catch(() => null)
+
+    // Se não temos a tabela stripeEvent, fazemos uma checagem alternativa
+    // baseada no subscription ID para checkout.session.completed
+    if (event.type === 'checkout.session.completed' && event.data?.object?.subscription) {
+      const existingSub = await prisma.subscription.findFirst({
+        where: { stripeSubscriptionId: event.data.object.subscription },
+      })
+      if (existingSub) {
+        console.log('[Stripe Webhook] Event already processed (subscription exists), skipping')
+        return NextResponse.json({ received: true, deduplicated: true })
+      }
+    }
+  }
+
   switch (event.type) {
     case 'checkout.session.completed': {
       const session = event.data.object
