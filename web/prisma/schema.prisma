@@ -183,7 +183,7 @@ model ScheduleSlot {
   serviceId String @map("service_id")
   trainerId String @map("trainer_id")
 
-  dayOfWeek Int    // 0=Sunday, 6=Saturday
+  dayOfWeek Int    @map("day_of_week") // 0=Sunday, 6=Saturday
   startTime String @map("start_time") // "08:00"
   endTime   String @map("end_time")   // "09:00"
 
