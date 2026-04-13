@@ -110,7 +110,8 @@ export async function POST(request: NextRequest) {
     coinsAwarded: result.coinsAwarded,
     studentName: booking.student.fullName,
     serviceName: booking.service.name,
-    prescriptionCompleted: result.prescriptionCompleted,({
+    prescriptionCompleted: result.prescriptionCompleted,
+    coinsBalance: (await prisma.profile.findUnique({
       where: { id: booking.studentId },
       select: { coinsBalance: true },
     }))?.coinsBalance || 0,
