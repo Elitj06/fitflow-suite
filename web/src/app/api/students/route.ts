@@ -42,12 +42,50 @@ export async function GET(request: NextRequest) {
     const source = searchParams.get('source')
     const status = searchParams.get('status')
 
-    let query = supabase
-      .from('profiles')
-      .select('id, full_name, email, phone, coins_balance, is_active, avatar_url, health_notes, created_at')
-      .eq('org_id', profile.org_id)
-      .eq('role', 'STUDENT')
-      .order('full_name')
+    // Fetch all students — Supabase REST default limit is 1000, so we paginate
+    let allStudents: any[] = []
+    let page = 0
+    const pageSize = 1000
+    let hasMore = true
+
+    while (hasMore) {
+      let query = supabase
+        .from('profiles')
+        .select('id, full_name, email, phone, coins_balance, is_active, avatar_url, health_notes, created_at')
+        .eq('org_id', profile.org_id)
+        .eq('role', 'STUDENT')
+        .order('full_name')
+        .range(page * pageSize, (page + 1) * pageSize - 1)
+
+      if (search) {
+        query = query.or(`full_name.ilike.%${search}%,email.ilike.%${search}%`)
+      }
+
+      if (status === 'active') {
+        query = query.eq('is_active', true)
+      } else if (status === 'inactive') {
+        query = query.eq('is_active', false)
+      }
+
+      if (source === 'wellhub') {
+        query = query.ilike('health_notes', '%Wellhub%')
+      } else if (source === 'totalpass') {
+        query = query.ilike('health_notes', '%TotalPass%')
+      }
+
+      const { data: pageData, error: queryError } = await query
+
+      if (queryError) {
+        console.error('Students query error:', queryError)
+        return NextResponse.json({ error: 'Query failed' }, { status: 500 })
+      }
+
+      allStudents = allStudents.concat(pageData || [])
+      hasMore = (pageData || []).length === pageSize
+      page++
+    }
+
+    const students = allStudents
 
     if (search) {
       query = query.or(`full_name.ilike.%${search}%,email.ilike.%${search}%`)
@@ -63,13 +101,6 @@ export async function GET(request: NextRequest) {
       query = query.ilike('health_notes', '%Wellhub%')
     } else if (source === 'totalpass') {
       query = query.ilike('health_notes', '%TotalPass%')
-    }
-
-    const { data: students, error: queryError } = await query
-
-    if (queryError) {
-      console.error('Students query error:', queryError)
-      return NextResponse.json({ error: 'Query failed' }, { status: 500 })
     }
 
     return NextResponse.json((students || []).map(s => ({
