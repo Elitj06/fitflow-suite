@@ -32,7 +32,12 @@ export async function GET(request: NextRequest) {
       lt: new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1),
     }
   }
-  if (status) where.status = status.toUpperCase()
+  if (status) {
+    where.status = status.toUpperCase()
+  } else {
+    // By default, exclude cancelled bookings from schedule view
+    where.status = { not: 'CANCELLED' }
+  }
 
   // Role-scoped filtering: students only see their own bookings; trainers see their own;
   // admins may optionally filter by studentId
@@ -106,19 +111,19 @@ export async function POST(request: NextRequest) {
   const start = new Date(startsAt)
   const end = new Date(start.getTime() + service.durationMinutes * 60000)
 
-  // Check for conflicts
-  const conflict = await prisma.booking.findFirst({
+  // Check for conflicts — only block if the SAME student already has a booking at this time
+  const studentConflict = await prisma.booking.findFirst({
     where: {
       orgId: profile.orgId,
-      trainerId,
+      studentId: targetStudentId,
       status: { in: ['PENDING', 'CONFIRMED'] },
       startsAt: { lt: end },
       endsAt: { gt: start },
     },
   })
 
-  if (conflict) {
-    return NextResponse.json({ error: 'Horario indisponivel — ja existe agendamento neste periodo' }, { status: 409 })
+  if (studentConflict) {
+    return NextResponse.json({ error: 'Este aluno ja possui agendamento neste horario' }, { status: 409 })
   }
 
   // Check capacity for group classes AND create booking atomically
