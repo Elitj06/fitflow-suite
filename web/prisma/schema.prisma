@@ -61,6 +61,7 @@ model Organization {
   scheduleSlots    ScheduleSlot[]
   announcements    Announcement[]
   branches         Branch[]
+  workoutPrescriptions WorkoutPrescription[]
 
   @@map("organizations")
 }
@@ -120,6 +121,8 @@ model Profile {
   coinTransactions CoinTransaction[]
   subscriptions    Subscription[]
   scheduleSlots    ScheduleSlot[]
+  studentPrescriptions WorkoutPrescription[] @relation("StudentPrescriptions")
+  trainerPrescriptions WorkoutPrescription[] @relation("TrainerPrescriptions")
 
   @@index([orgId])
   @@index([userId])
@@ -223,6 +226,7 @@ model Booking {
 
   notes String?
 
+  prescriptionId String? @map("prescription_id")
   branchId String? @map("branch_id")
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -235,6 +239,7 @@ model Booking {
   student      Profile      @relation("StudentBookings", fields: [studentId], references: [id])
   checkin      Checkin?
   branch       Branch?      @relation(fields: [branchId], references: [id])
+  prescription WorkoutPrescription? @relation(fields: [prescriptionId], references: [id])
 
   @@index([orgId, startsAt])
   @@index([trainerId, startsAt])
@@ -438,8 +443,39 @@ model Branch {
   scheduleSlots ScheduleSlot[]
   bookings      Booking[]
   checkins      Checkin[]
+  workoutPrescriptions WorkoutPrescription[]
 
   @@map("branches")
+}
+
+// ============================================
+// WORKOUT PRESCRIPTIONS
+// ============================================
+
+model WorkoutPrescription {
+  id          String   @id @default(cuid())
+  orgId       String   @map("org_id")
+  studentId   String   @map("student_id")
+  trainerId   String   @map("trainer_id")
+  code        String
+  name        String?
+  totalSessions Int    @map("total_sessions")
+  usedSessions  Int    @default(0) @map("used_sessions")
+  isActive    Boolean  @default(true) @map("is_active")
+  startDate   DateTime @map("start_date")
+  completedAt DateTime? @map("completed_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  branchId    String?  @map("branch_id")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  student      Profile      @relation("StudentPrescriptions", fields: [studentId], references: [id])
+  trainer      Profile      @relation("TrainerPrescriptions", fields: [trainerId], references: [id])
+  branch       Branch?      @relation(fields: [branchId], references: [id])
+  bookings     Booking[]
+
+  @@index([orgId, studentId, isActive])
+  @@map("workout_prescriptions")
 }
 
 // ============================================

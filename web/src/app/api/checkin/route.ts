@@ -57,7 +57,25 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // 3. Award FitCoins
+    // 3. Increment workout prescription session counter
+    const activePrescription = await tx.workoutPrescription.findFirst({
+      where: { orgId: profile.orgId, studentId: booking.studentId, isActive: true },
+    })
+    let prescriptionCompleted = false
+    if (activePrescription) {
+      const newUsed = activePrescription.usedSessions + 1
+      const shouldComplete = newUsed >= activePrescription.totalSessions
+      await tx.workoutPrescription.update({
+        where: { id: activePrescription.id },
+        data: {
+          usedSessions: newUsed,
+          ...(shouldComplete ? { isActive: false, completedAt: new Date() } : {}),
+        },
+      })
+      prescriptionCompleted = shouldComplete
+    }
+
+    // 4. Award FitCoins
     if (coinsToAward > 0) {
       await tx.coinTransaction.create({
         data: {
@@ -76,7 +94,7 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    return { checkin, coinsAwarded: coinsToAward }
+    return { checkin, coinsAwarded: coinsToAward, prescriptionCompleted }
   })
 
   // If student is a Wellhub user, report the check-in event
@@ -92,7 +110,7 @@ export async function POST(request: NextRequest) {
     coinsAwarded: result.coinsAwarded,
     studentName: booking.student.fullName,
     serviceName: booking.service.name,
-    newBalance: (await prisma.profile.findUnique({
+    prescriptionCompleted: result.prescriptionCompleted,({
       where: { id: booking.studentId },
       select: { coinsBalance: true },
     }))?.coinsBalance || 0,

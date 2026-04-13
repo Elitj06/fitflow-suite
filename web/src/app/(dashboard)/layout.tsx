@@ -65,6 +65,11 @@ const navItems = [
   },
   { type: 'divider' as const, label: 'Comunicacao' },
   {
+    label: 'Prescrições',
+    href: '/trainer/prescriptions',
+    icon: Dumbbell,
+  },
+  {
     label: 'FitBot IA',
     href: '/chatbot',
     icon: Bot,
