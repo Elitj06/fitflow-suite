@@ -9,6 +9,7 @@ const CreateBookingSchema = z.object({
   startsAt: z.string().min(1),
   studentId: z.string().optional(),
   notes: z.string().max(1000).optional(),
+  prescriptionId: z.string().optional(),
 })
 
 /**
@@ -155,6 +156,7 @@ export async function POST(request: NextRequest) {
           status: 'CONFIRMED',
           source: 'WEB',
           notes,
+          prescriptionId: body.prescriptionId || null,
         },
         include: {
           service: { select: { name: true } },

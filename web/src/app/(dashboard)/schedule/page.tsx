@@ -43,7 +43,8 @@ export default function SchedulePage() {
   const [services, setServices] = useState<Service[]>([])
   const [students, setStudents] = useState<StudentProfile[]>([])
   const [myProfile, setMyProfile] = useState<{ id: string } | null>(null)
-  const [form, setForm] = useState({ studentId: '', serviceId: '', date: '', hour: '08:00', notes: '' })
+  const [prescriptions, setPrescriptions] = useState<{ id: string; code: string; name: string | null; studentId: string }[]>([])
+  const [form, setForm] = useState({ studentId: '', serviceId: '', date: '', hour: '08:00', notes: '', prescriptionId: '' })
   const [saving, setSaving] = useState(false)
   const [cancelling, setCancelling] = useState(false)
 
@@ -73,6 +74,11 @@ export default function SchedulePage() {
       setStudents(list.map((s: any) => ({ id: s.id, fullName: s.fullName })))
     }
     if (profileRes.ok) setMyProfile(await profileRes.json())
+    // Load active prescriptions
+    try {
+      const pRes = await fetch('/api/prescriptions')
+      if (pRes.ok) setPrescriptions(await pRes.json())
+    } catch {}
   }
 
   useEffect(() => { loadBookings() }, [dateStr])
@@ -99,6 +105,7 @@ export default function SchedulePage() {
           studentId: form.studentId,
           startsAt: startsAt.toISOString(),
           notes: form.notes || null,
+          prescriptionId: form.prescriptionId || undefined,
         }),
       })
       const data = await res.json()
@@ -108,7 +115,7 @@ export default function SchedulePage() {
       }
       toast.success('Agendamento criado com sucesso!')
       setShowNewBooking(false)
-      setForm({ studentId: '', serviceId: '', date: '', hour: '08:00', notes: '' })
+      setForm({ studentId: '', serviceId: '', date: '', hour: '08:00', notes: '', prescriptionId: '' })
       loadBookings()
     } catch (e) {
       toast.error('Erro de conexao')
@@ -221,12 +228,12 @@ export default function SchedulePage() {
                           </button>
                         ))}
                       </div>
-                    ) : (
-                      <button onClick={() => { setForm((f) => ({ ...f, date: dateStr, hour })); setShowNewBooking(true) }}
-                        className="flex h-full w-full items-center justify-center rounded-lg border border-dashed border-gray-200 text-xs text-gray-400 hover:border-brand-300 hover:text-brand-500 hover:bg-brand-50/50 transition-all">
-                        <Plus className="mr-1 h-3 w-3" /> Agendar
-                      </button>
-                    )}
+                    ) : null}
+                    {/* Always show + button to allow adding more students to a slot */}
+                    <button onClick={() => { setForm((f) => ({ ...f, date: dateStr, hour, prescriptionId: '' })); setShowNewBooking(true) }}
+                      className="flex items-center gap-1 rounded-lg border border-dashed border-gray-200 px-3 py-1 text-xs text-gray-400 hover:border-brand-300 hover:text-brand-500 hover:bg-brand-50/50 transition-all mt-1">
+                      <Plus className="h-3 w-3" /> Agendar
+                    </button>
                   </div>
                 </div>
               )
@@ -337,6 +344,16 @@ export default function SchedulePage() {
                     {HOURS.map((h) => <option key={h}>{h}</option>)}
                   </select>
                 </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Prescricao de Treino</label>
+                <select value={form.prescriptionId} onChange={(e) => setForm((p) => ({ ...p, prescriptionId: e.target.value }))}
+                  className="mt-1 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100">
+                  <option value="">Sem prescricao (livre)</option>
+                  {prescriptions.filter(p => !form.studentId || p.studentId === form.studentId).map((p) => (
+                    <option key={p.id} value={p.id}>{p.code}{p.name ? ` — ${p.name}` : ''}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Observacoes</label>
