@@ -34,8 +34,8 @@ const navItems = [
     icon: LayoutDashboard,
   },
   {
-    label: 'Agenda',
-    href: '/schedule',
+    label: 'Minha Agenda',
+    href: '/trainer/schedule',
     icon: Calendar,
   },
   {
