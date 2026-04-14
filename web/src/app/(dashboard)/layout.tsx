@@ -30,85 +30,106 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import { useTheme } from '@/lib/theme'
 
-const navItems = [
+const allNavItems = [
   {
     label: 'Dashboard',
     href: '/trainer',
     icon: LayoutDashboard,
+    roles: ['ADMIN'],
   },
   {
     label: 'Minha Agenda',
     href: '/trainer/schedule',
     icon: Calendar,
+    roles: ['TRAINER'],
+  },
+  {
+    label: 'Agenda',
+    href: '/schedule',
+    icon: Calendar,
+    roles: ['ADMIN'],
   },
   {
     label: 'Alunos',
     href: '/trainer/students',
     icon: Users,
+    roles: ['ADMIN', 'TRAINER'],
   },
   {
     label: 'Check-in',
     href: '/checkin',
     icon: QrCode,
+    roles: ['ADMIN', 'TRAINER'],
   },
   {
     label: 'FitCoins',
     href: '/coins',
     icon: Coins,
+    roles: ['ADMIN'],
   },
   {
     label: 'Recompensas',
     href: '/coins/rewards',
     icon: Gift,
+    roles: ['ADMIN'],
   },
   {
     label: 'Analytics',
     href: '/trainer/analytics',
     icon: BarChart3,
+    roles: ['ADMIN'],
   },
-  { type: 'divider' as const, label: 'Comunicacao' },
+  { type: 'divider' as const, label: 'Comunicacao', roles: ['ADMIN'] },
   {
     label: 'Prescrições',
     href: '/trainer/prescriptions',
     icon: Dumbbell,
+    roles: ['ADMIN'],
   },
   {
     label: 'FitBot IA',
     href: '/chatbot',
     icon: Bot,
     badge: 'PRO',
+    roles: ['ADMIN'],
   },
   {
     label: 'Avisos',
     href: '/trainer/announcements',
     icon: Megaphone,
+    roles: ['ADMIN'],
   },
-  { type: 'divider' as const, label: 'Configuracoes' },
+  { type: 'divider' as const, label: 'Configuracoes', roles: ['ADMIN'] },
   {
     label: 'Cobrancas',
     href: '/billing',
     icon: CreditCard,
+    roles: ['ADMIN'],
   },
   {
     label: 'Integracoes',
     href: '/admin/integrations',
     icon: Settings,
     badge: 'NOVO',
+    roles: ['ADMIN'],
   },
   {
     label: 'Unidades',
     href: '/admin/branches',
     icon: Building2,
+    roles: ['ADMIN'],
   },
   {
     label: 'Serviços',
     href: '/admin/services',
     icon: Dumbbell,
+    roles: ['ADMIN'],
   },
   {
     label: 'Configuracoes',
     href: '/admin',
     icon: Settings,
+    roles: ['ADMIN'],
   },
 ]
 
@@ -121,6 +142,9 @@ export default function DashboardLayout({
   const router = useRouter()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [userProfile, setUserProfile] = useState<{ fullName: string; role: string } | null>(null)
+
+  const userRole = userProfile?.role || 'STUDENT'
+  const navItems = allNavItems.filter(item => !('roles' in item) || item.roles.includes(userRole))
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -157,7 +181,7 @@ export default function DashboardLayout({
     userProfile?.role === 'ADMIN'
       ? 'Admin'
       : userProfile?.role === 'TRAINER'
-      ? 'Trainer'
+      ? 'Professor'
       : 'Aluno'
 
   return (

@@ -16,6 +16,16 @@ export async function signIn(formData: FormData) {
     return { error: error.message }
   }
 
+  // Redirect based on role
+  const { data: { user } } = await supabase.auth.getUser()
+  if (user) {
+    const { prisma } = await import('@/lib/prisma')
+    const profile = await prisma.profile.findUnique({ where: { userId: user.id }, select: { role: true } })
+    if (profile?.role === 'TRAINER') {
+      redirect('/trainer/schedule')
+    }
+  }
+
   redirect('/trainer')
 }
 

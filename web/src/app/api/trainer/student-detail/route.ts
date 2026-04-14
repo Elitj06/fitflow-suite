@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
       select: {
         id: true, fullName: true, email: true, phone: true,
         healthNotes: true, emergencyContact: true, birthDate: true,
-        avatarUrl: true, coinsBalance: true, isActive: true,
+        avatarUrl: true, coinsBalance: true, isActive: true, source: true,
         createdAt: true,
       },
     })
