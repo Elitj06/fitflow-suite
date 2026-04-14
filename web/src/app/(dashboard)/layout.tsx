@@ -207,7 +207,7 @@ export default function DashboardLayout({
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600">
               <Zap className="h-4 w-4 text-white" />
             </div>
-            <span className="font-display text-lg font-bold text-gray-900">
+            <span className="font-display text-lg font-bold text-gray-900 dark:text-white">
               Fit<span className="text-brand-600">Flow</span>
             </span>
           </Link>
