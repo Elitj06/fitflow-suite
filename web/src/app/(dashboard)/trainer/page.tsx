@@ -5,6 +5,7 @@ import {
   Users, Calendar, Coins, TrendingUp,
   ArrowUpRight, ArrowDownRight, Clock,
   CheckCircle2, QrCode, Loader2, Bot,
+  Dumbbell,
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -114,14 +115,14 @@ export default function TrainerDashboard() {
         <div className="lg:col-span-2 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6">
           <div className="flex items-center justify-between">
             <h2 className="font-display text-lg font-semibold text-gray-900 dark:text-white">Proximas Aulas</h2>
-            <Link href="/schedule" className="text-sm font-medium text-brand-600 hover:text-brand-700">Ver agenda</Link>
+            <Link href="/trainer/schedule" className="text-sm font-medium text-brand-600 hover:text-brand-700">Ver agenda</Link>
           </div>
           <div className="mt-4 space-y-3">
             {upcoming.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-10 text-gray-400">
                 <Calendar className="h-10 w-10 mb-2 opacity-30" />
                 <p className="text-sm">Nenhuma aula agendada para hoje</p>
-                <Link href="/schedule" className="mt-2 text-xs text-brand-600 hover:underline">Criar agendamento</Link>
+                <Link href="/trainer/schedule" className="mt-2 text-xs text-brand-600 hover:underline">Ver agenda</Link>
               </div>
             ) : upcoming.map((b) => {
               const cfgMap: Record<string, {label: string; color: string; icon: React.ElementType}> = {
@@ -154,7 +155,7 @@ export default function TrainerDashboard() {
           <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6">
             <h2 className="font-display text-lg font-semibold text-gray-900 dark:text-white">Acoes Rapidas</h2>
             <div className="mt-4 grid grid-cols-2 gap-3">
-              {[{href:'/checkin',icon:QrCode,label:'Check-in'},{href:'/schedule',icon:Calendar,label:'Agendar'},{href:'/trainer/students',icon:Users,label:'Alunos'},{href:'/coins',icon:Coins,label:'FitCoins'}].map(a => (
+              {[{href:'/checkin',icon:QrCode,label:'Check-in'},{href:'/trainer/students',icon:Users,label:'Alunos'},{href:'/trainer/prescriptions',icon:Dumbbell,label:'Prescrições'},{href:'/trainer/schedule',icon:Calendar,label:'Minha Agenda'}].map(a => (
                 <Link key={a.href} href={a.href} className="flex flex-col items-center gap-2 rounded-xl border border-gray-200 p-4 text-center transition-all hover:border-brand-300 hover:bg-brand-50">
                   <a.icon className="h-6 w-6 text-brand-600" />
                   <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{a.label}</span>

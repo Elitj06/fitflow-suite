@@ -332,7 +332,7 @@ export default function StudentsPage() {
               {/* Actions */}
               <div className="flex gap-3">
                 <button onClick={() => setSelected(null)} className="flex-1 rounded-xl border border-gray-300 dark:border-gray-600 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800">Fechar</button>
-                <a href={`/schedule?studentId=${selected.id}`} className="flex-1 text-center rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">Agendar Aula</a>
+                <a href={`/trainer/students/${selected.id}`} className="flex-1 text-center rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">Ver Evolução</a>
               </div>
             </div>
           </div>
