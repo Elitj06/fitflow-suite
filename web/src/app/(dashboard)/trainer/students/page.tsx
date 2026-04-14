@@ -52,11 +52,19 @@ export default function StudentsPage() {
   const [addForm, setAddForm] = useState({ fullName: '', email: '', phone: '', source: 'direct' })
   const [addError, setAddError] = useState('')
 
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300)
+    return () => clearTimeout(timer)
+  }, [search])
+
   const loadStudents = useCallback(async () => {
     setLoading(true)
     try {
       const params = new URLSearchParams()
-      if (search && search.trim().length >= 2) params.set('search', search.trim())
+      if (debouncedSearch && debouncedSearch.trim().length >= 2) params.set('search', debouncedSearch.trim())
       if (filter === 'active') params.set('status', 'active')
       if (filter === 'inactive') params.set('status', 'inactive')
       if (filter === 'wellhub') params.set('source', 'wellhub')
@@ -69,7 +77,7 @@ export default function StudentsPage() {
     } finally {
       setLoading(false)
     }
-  }, [search, filter])
+  }, [debouncedSearch, filter])
 
   useEffect(() => { loadStudents() }, [loadStudents])
 

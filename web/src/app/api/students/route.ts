@@ -41,19 +41,14 @@ export async function GET(request: NextRequest) {
     const sourceFilter = searchParams.get('source')
     const status = searchParams.get('status')
 
-    // Build query with filters
+    // Build base query
     let query = supabase
       .from('profiles')
-      .select('id, full_name, email, phone, coins_balance, is_active, avatar_url, health_notes, source, created_at', { count: 'exact' })
+      .select('id, full_name, email, phone, coins_balance, is_active, avatar_url, health_notes, source, created_at')
       .eq('org_id', profile.org_id)
       .eq('role', 'STUDENT')
       .order('full_name')
-      .limit(500)
-
-    // Search filter — name or email
-    if (search && search.trim().length >= 2) {
-      query = query.or(`full_name.ilike.%${search.trim()}%,email.ilike.%${search.trim()}%`)
-    }
+      .limit(1000)
 
     // Status filter
     if (status === 'active') {
@@ -76,6 +71,17 @@ export async function GET(request: NextRequest) {
     if (queryError) {
       console.error('Students query error:', queryError)
       return NextResponse.json({ error: 'Query failed' }, { status: 500 })
+    }
+
+    // Client-side search filter (more reliable than Supabase .or() combined with .eq())
+    let filtered = students || []
+    if (search && search.trim().length >= 2) {
+      const term = search.trim().toLowerCase()
+      filtered = filtered.filter((s: any) =>
+        s.full_name?.toLowerCase().includes(term) ||
+        s.email?.toLowerCase().includes(term) ||
+        s.phone?.includes(term)
+      )
     }
 
     // Get checkin counts in a separate query for performance
@@ -107,7 +113,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    return NextResponse.json((students || []).map(s => ({
+    return NextResponse.json(filtered.map(s => ({
       id: s.id,
       fullName: s.full_name,
       email: s.email,
