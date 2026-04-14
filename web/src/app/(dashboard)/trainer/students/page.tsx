@@ -53,6 +53,11 @@ export default function StudentsPage() {
   const [addError, setAddError] = useState('')
   const [userRole, setUserRole] = useState<string>('TRAINER')
 
+  // Fetch role once
+  useEffect(() => {
+    fetch('/api/profile').then(r => r.ok ? r.json() : {}).then(p => setUserRole(p.role || 'TRAINER')).catch(() => {})
+  }, [])
+
   const [debouncedSearch, setDebouncedSearch] = useState('')
 
   // Debounce search
@@ -72,12 +77,6 @@ export default function StudentsPage() {
       if (filter === 'totalpass') params.set('source', 'totalpass')
       if (filter === 'direct') params.set('source', 'direct')
       const res = await fetch('/api/students?' + params.toString())
-      // Fetch role
-      const profileRes = await fetch('/api/profile')
-      if (profileRes.ok) {
-        const p = await profileRes.json()
-        setUserRole(p.role || 'TRAINER')
-      }
       if (res.ok) setStudents(await res.json())
     } catch (e) {
       console.error(e)
