@@ -463,6 +463,8 @@ model WorkoutPrescription {
   name        String?
   totalSessions Int    @map("total_sessions")
   usedSessions  Int    @default(0) @map("used_sessions")
+  description String?  @db.Text
+  exercises   Json?
   isActive    Boolean  @default(true) @map("is_active")
   startDate   DateTime @map("start_date")
   completedAt DateTime? @map("completed_at")

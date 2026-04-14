@@ -5,14 +5,14 @@ import { getAuthenticatedProfile } from '@/lib/api-auth'
 /**
  * POST /api/prescriptions
  * Create a workout prescription (TRAINER/ADMIN only)
- * Body: { studentId, code, totalSessions, name?, branchId? }
+ * Body: { studentId, code, totalSessions, name?, description?, exercises?, branchId? }
  */
 export async function POST(request: NextRequest) {
   const profile = await getAuthenticatedProfile()
   if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if (profile.role === 'STUDENT') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { studentId, code, totalSessions, name, branchId } = await request.json()
+  const { studentId, code, totalSessions, name, description, exercises, branchId } = await request.json()
   if (!studentId || !code || !totalSessions) {
     return NextResponse.json({ error: 'studentId, code, totalSessions are required' }, { status: 422 })
   }
@@ -30,6 +30,8 @@ export async function POST(request: NextRequest) {
       trainerId: profile.id,
       code,
       name: name || null,
+      description: description || null,
+      exercises: exercises || undefined,
       totalSessions,
       startDate: new Date(),
       branchId: branchId || null,
@@ -45,6 +47,7 @@ export async function POST(request: NextRequest) {
 /**
  * GET /api/prescriptions?studentId=xxx&active=true
  * List prescriptions (filtered by student and/or active status)
+ * TRAINER sees only their own prescriptions; ADMIN sees all
  */
 export async function GET(request: NextRequest) {
   const profile = await getAuthenticatedProfile()
@@ -58,6 +61,7 @@ export async function GET(request: NextRequest) {
       orgId: profile.orgId,
       ...(studentId ? { studentId } : {}),
       ...(activeOnly ? { isActive: true } : {}),
+      ...(profile.role === 'TRAINER' ? { trainerId: profile.id } : {}),
     },
     include: {
       student: { select: { id: true, fullName: true, phone: true } },

@@ -84,7 +84,7 @@ const allNavItems = [
     label: 'Prescrições',
     href: '/trainer/prescriptions',
     icon: Dumbbell,
-    roles: ['ADMIN'],
+    roles: ['ADMIN', 'TRAINER'],
   },
   {
     label: 'FitBot IA',
@@ -278,8 +278,8 @@ export default function DashboardLayout({
               {initials}
             </div>
             <div className="flex-1 text-left">
-              <div className="font-medium text-gray-900 text-sm">{displayName}</div>
-              <div className="text-xs text-gray-500">{displayRole}</div>
+              <div className="font-medium text-gray-900 dark:text-white text-sm">{displayName}</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">{displayRole}</div>
             </div>
             <LogOut className="h-4 w-4 text-gray-400 group-hover:text-red-500 transition-colors" />
           </button>
