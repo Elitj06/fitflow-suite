@@ -51,6 +51,7 @@ export default function StudentsPage() {
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([])
   const [addForm, setAddForm] = useState({ fullName: '', email: '', phone: '', source: 'direct' })
   const [addError, setAddError] = useState('')
+  const [userRole, setUserRole] = useState<string>('TRAINER')
 
   const [debouncedSearch, setDebouncedSearch] = useState('')
 
@@ -71,6 +72,12 @@ export default function StudentsPage() {
       if (filter === 'totalpass') params.set('source', 'totalpass')
       if (filter === 'direct') params.set('source', 'direct')
       const res = await fetch('/api/students?' + params.toString())
+      // Fetch role
+      const profileRes = await fetch('/api/profile')
+      if (profileRes.ok) {
+        const p = await profileRes.json()
+        setUserRole(p.role || 'TRAINER')
+      }
       if (res.ok) setStudents(await res.json())
     } catch (e) {
       console.error(e)
@@ -189,7 +196,7 @@ export default function StudentsPage() {
                 <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50">
                   <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Aluno</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Classificação</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">FitCoins</th>
+                  {userRole === 'ADMIN' && <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">FitCoins</th>}
                   <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Aulas</th>
                   <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
                 </tr>
@@ -263,7 +270,9 @@ export default function StudentsPage() {
                 <div className="rounded-xl bg-yellow-50 dark:bg-yellow-900/20 p-3 text-center">
                   <Coins className="mx-auto h-5 w-5 text-yellow-600 dark:text-yellow-400" />
                   <div className="mt-1 font-display text-xl font-bold text-gray-900 dark:text-white">{selected.coinsBalance}</div>
+                }
                   <div className="text-[10px] text-gray-500 dark:text-gray-400">FitCoins</div>
+                }
                 </div>
                 <div className="rounded-xl bg-brand-50 dark:bg-brand-900/20 p-3 text-center">
                   <Calendar className="mx-auto h-5 w-5 text-brand-600 dark:text-brand-400" />

@@ -58,6 +58,7 @@ export default function TrainerDashboard() {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
   const [firstName, setFirstName] = useState('Personal')
+  const [userRole, setUserRole] = useState<string>('TRAINER')
 
   useEffect(() => {
     async function load() {
@@ -73,6 +74,7 @@ export default function TrainerDashboard() {
         if (profileRes.ok) {
           const p = await profileRes.json()
           setFirstName(p.fullName?.split(' ')[0] || 'Personal')
+          setUserRole(p.role || 'TRAINER')
         }
       } catch (e) {
         console.error(e)
@@ -107,8 +109,8 @@ export default function TrainerDashboard() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard title="Alunos Ativos" value={stats ? String(stats.students.active) : '0'} change={stats ? (stats.students.change >= 0 ? '+' : '') + stats.students.change + '%' : ''} changeType={!stats || stats.students.change === 0 ? 'neutral' : stats.students.change > 0 ? 'up' : 'down'} icon={Users} accent="#6366f1" />
         <StatCard title="Aulas Hoje" value={stats ? String(stats.bookings.today) : '0'} change={stats ? (stats.bookings.change >= 0 ? '+' : '') + stats.bookings.change + '%' : ''} changeType={!stats || stats.bookings.change === 0 ? 'neutral' : stats.bookings.change > 0 ? 'up' : 'down'} icon={Calendar} accent="#10b981" />
-        <StatCard title="FitCoins Emitidos" value={stats ? stats.coins.monthEarned.toLocaleString('pt-BR') : '0'} change={stats ? (stats.coins.change >= 0 ? '+' : '') + stats.coins.change + '%' : ''} changeType={!stats || stats.coins.change === 0 ? 'neutral' : stats.coins.change > 0 ? 'up' : 'down'} icon={Coins} accent="#eab308" />
-        <StatCard title="Receita do Mes" value={stats ? 'R$ ' + Number(stats.revenue.month).toLocaleString('pt-BR') : 'R$ 0'} change="" changeType="neutral" icon={TrendingUp} accent="#ec4899" />
+        {userRole === 'ADMIN' && <StatCard title="FitCoins Emitidos" value={stats ? stats.coins.monthEarned.toLocaleString('pt-BR') : '0'} change={stats ? (stats.coins.change >= 0 ? '+' : '') + stats.coins.change + '%' : ''} changeType={!stats || stats.coins.change === 0 ? 'neutral' : stats.coins.change > 0 ? 'up' : 'down'} icon={Coins} accent="#eab308" />}
+        {userRole === 'ADMIN' && <StatCard title="Receita do Mes" value={stats ? 'R$ ' + Number(stats.revenue.month).toLocaleString('pt-BR') : 'R$ 0'} change="" changeType="neutral" icon={TrendingUp} accent="#ec4899" />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
