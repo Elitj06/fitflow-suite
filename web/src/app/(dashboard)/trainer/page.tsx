@@ -32,7 +32,7 @@ function StatCard({
   icon: React.ElementType; accent: string
 }) {
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-6">
+    <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6">
       <div className="flex items-center justify-between">
         <div className="inline-flex rounded-xl p-2.5" style={{ backgroundColor: accent + '15', color: accent }}>
           <Icon className="h-5 w-5" />
@@ -45,8 +45,8 @@ function StatCard({
         )}
       </div>
       <div className="mt-4">
-        <div className="font-display text-2xl font-bold text-gray-900">{value}</div>
-        <div className="mt-0.5 text-sm text-gray-500">{title}</div>
+        <div className="font-display text-2xl font-bold text-gray-900 dark:text-white">{value}</div>
+        <div className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">{title}</div>
       </div>
     </div>
   )
@@ -97,7 +97,7 @@ export default function TrainerDashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-display text-2xl font-bold text-gray-900">{greeting}, {firstName}! 👋</h1>
+        <h1 className="font-display text-2xl font-bold text-gray-900 dark:text-white">{greeting}, {firstName}! 👋</h1>
         <p className="mt-1 text-gray-500">
           {stats ? `Voce tem ${stats.bookings.today} aula${stats.bookings.today !== 1 ? 's' : ''} hoje.` : 'Bem-vindo ao painel.'}
         </p>
@@ -111,9 +111,9 @@ export default function TrainerDashboard() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2 rounded-2xl border border-gray-200 bg-white p-6">
+        <div className="lg:col-span-2 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6">
           <div className="flex items-center justify-between">
-            <h2 className="font-display text-lg font-semibold text-gray-900">Proximas Aulas</h2>
+            <h2 className="font-display text-lg font-semibold text-gray-900 dark:text-white">Proximas Aulas</h2>
             <Link href="/schedule" className="text-sm font-medium text-brand-600 hover:text-brand-700">Ver agenda</Link>
           </div>
           <div className="mt-4 space-y-3">
@@ -151,13 +151,13 @@ export default function TrainerDashboard() {
         </div>
 
         <div className="space-y-6">
-          <div className="rounded-2xl border border-gray-200 bg-white p-6">
-            <h2 className="font-display text-lg font-semibold text-gray-900">Acoes Rapidas</h2>
+          <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6">
+            <h2 className="font-display text-lg font-semibold text-gray-900 dark:text-white">Acoes Rapidas</h2>
             <div className="mt-4 grid grid-cols-2 gap-3">
               {[{href:'/checkin',icon:QrCode,label:'Check-in'},{href:'/schedule',icon:Calendar,label:'Agendar'},{href:'/trainer/students',icon:Users,label:'Alunos'},{href:'/coins',icon:Coins,label:'FitCoins'}].map(a => (
                 <Link key={a.href} href={a.href} className="flex flex-col items-center gap-2 rounded-xl border border-gray-200 p-4 text-center transition-all hover:border-brand-300 hover:bg-brand-50">
                   <a.icon className="h-6 w-6 text-brand-600" />
-                  <span className="text-xs font-medium text-gray-700">{a.label}</span>
+                  <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{a.label}</span>
                 </Link>
               ))}
             </div>

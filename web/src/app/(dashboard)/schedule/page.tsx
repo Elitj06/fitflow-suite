@@ -213,8 +213,8 @@ export default function SchedulePage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-display text-2xl font-bold text-gray-900">Agenda</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <h1 className="font-display text-2xl font-bold text-gray-900 dark:text-white">Agenda</h1>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             {loading ? 'Carregando...' : `${bookings.length} aulas, ${confirmedCount} confirmadas`}
           </p>
         </div>
@@ -227,13 +227,13 @@ export default function SchedulePage() {
       </div>
 
       {/* Date nav */}
-      <div className="flex items-center justify-between rounded-2xl border border-gray-200 bg-white p-4">
+      <div className="flex items-center justify-between rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
         <div className="flex items-center gap-3">
           <button onClick={prevDay} className="rounded-lg p-2 hover:bg-gray-100">
             <ChevronLeft className="h-5 w-5 text-gray-600" />
           </button>
           <div>
-            <div className="font-display text-lg font-bold text-gray-900">
+            <div className="font-display text-lg font-bold text-gray-900 dark:text-white">
               {DAYS_PT[currentDate.getDay()]}, {currentDate.getDate()} de {MONTHS_PT[currentDate.getMonth()]} de {currentDate.getFullYear()}
             </div>
           </div>
@@ -242,13 +242,13 @@ export default function SchedulePage() {
           </button>
         </div>
         <button onClick={() => setCurrentDate(new Date())}
-          className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">
+          className="rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800">
           Hoje
         </button>
       </div>
 
       {/* Timeline */}
-      <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
+      <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 overflow-hidden">
         {loading ? (
           <div className="flex justify-center py-16">
             <Loader2 className="h-8 w-8 animate-spin text-brand-600" />
@@ -297,7 +297,7 @@ export default function SchedulePage() {
       {/* Booking detail modal */}
       {selectedBooking && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
+          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-gray-900 p-6 shadow-2xl border border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-display text-lg font-bold text-gray-900">Detalhes</h3>
               <button onClick={() => setSelectedBooking(null)} className="rounded-lg p-1 hover:bg-gray-100">
@@ -368,7 +368,7 @@ export default function SchedulePage() {
       {/* New booking modal */}
       {showNewBooking && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
+          <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl bg-white dark:bg-gray-900 p-6 shadow-2xl border border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between mb-6">
               <h3 className="font-display text-lg font-bold text-gray-900">Novo Agendamento</h3>
               <button onClick={() => setShowNewBooking(false)} className="rounded-lg p-1 hover:bg-gray-100">
@@ -398,7 +398,7 @@ export default function SchedulePage() {
                   <span className="absolute right-3 top-[38px] text-green-600 text-xs font-semibold">✓</span>
                 )}
                 {showStudentDropdown && !form.studentId && (
-                  <div className="absolute z-50 mt-1 w-full max-h-48 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-lg">
+                  <div className="absolute z-50 mt-1 w-full max-h-48 overflow-y-auto rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg">
                     {filteredStudents.length > 0 ? filteredStudents.map(s => (
                       <button key={s.id} type="button"
                         onClick={() => {

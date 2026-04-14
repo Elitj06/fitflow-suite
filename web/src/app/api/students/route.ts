@@ -10,6 +10,7 @@ const CreateStudentSchema = z.object({
   birthDate: z.string().optional(),
   emergencyContact: z.string().max(200).optional(),
   healthNotes: z.string().max(2000).optional(),
+  source: z.string().max(50).optional(),
 })
 
 export async function GET(request: NextRequest) {
@@ -21,7 +22,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Fetch profile via Supabase REST
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('org_id, role')
@@ -29,7 +29,6 @@ export async function GET(request: NextRequest) {
       .single()
 
     if (profileError || !profile) {
-      console.error('Profile fetch error:', profileError)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -39,68 +38,73 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = request.nextUrl
     const search = searchParams.get('search')
-    const source = searchParams.get('source')
+    const sourceFilter = searchParams.get('source')
     const status = searchParams.get('status')
 
-    // Fetch all students — Supabase REST default limit is 1000, so we paginate
-    let allStudents: any[] = []
-    let page = 0
-    const pageSize = 1000
-    let hasMore = true
+    // Build query with filters
+    let query = supabase
+      .from('profiles')
+      .select('id, full_name, email, phone, coins_balance, is_active, avatar_url, health_notes, source, created_at', { count: 'exact' })
+      .eq('org_id', profile.org_id)
+      .eq('role', 'STUDENT')
+      .order('full_name')
+      .limit(500)
 
-    while (hasMore) {
-      let query = supabase
-        .from('profiles')
-        .select('id, full_name, email, phone, coins_balance, is_active, avatar_url, health_notes, created_at')
-        .eq('org_id', profile.org_id)
-        .eq('role', 'STUDENT')
-        .order('full_name')
-        .range(page * pageSize, (page + 1) * pageSize - 1)
-
-      if (search) {
-        query = query.or(`full_name.ilike.%${search}%,email.ilike.%${search}%`)
-      }
-
-      if (status === 'active') {
-        query = query.eq('is_active', true)
-      } else if (status === 'inactive') {
-        query = query.eq('is_active', false)
-      }
-
-      if (source === 'wellhub') {
-        query = query.ilike('health_notes', '%Wellhub%')
-      } else if (source === 'totalpass') {
-        query = query.ilike('health_notes', '%TotalPass%')
-      }
-
-      const { data: pageData, error: queryError } = await query
-
-      if (queryError) {
-        console.error('Students query error:', queryError)
-        return NextResponse.json({ error: 'Query failed' }, { status: 500 })
-      }
-
-      allStudents = allStudents.concat(pageData || [])
-      hasMore = (pageData || []).length === pageSize
-      page++
+    // Search filter — name or email
+    if (search && search.trim().length >= 2) {
+      query = query.or(`full_name.ilike.%${search.trim()}%,email.ilike.%${search.trim()}%`)
     }
 
-    const students = allStudents
-
-    if (search) {
-      query = query.or(`full_name.ilike.%${search}%,email.ilike.%${search}%`)
-    }
-
+    // Status filter
     if (status === 'active') {
       query = query.eq('is_active', true)
     } else if (status === 'inactive') {
       query = query.eq('is_active', false)
     }
 
-    if (source === 'wellhub') {
-      query = query.ilike('health_notes', '%Wellhub%')
-    } else if (source === 'totalpass') {
-      query = query.ilike('health_notes', '%TotalPass%')
+    // Source filter
+    if (sourceFilter === 'wellhub') {
+      query = query.eq('source', 'wellhub')
+    } else if (sourceFilter === 'totalpass') {
+      query = query.eq('source', 'totalpass')
+    } else if (sourceFilter === 'direct') {
+      query = query.eq('source', 'direct')
+    }
+
+    const { data: students, error: queryError } = await query
+
+    if (queryError) {
+      console.error('Students query error:', queryError)
+      return NextResponse.json({ error: 'Query failed' }, { status: 500 })
+    }
+
+    // Get checkin counts in a separate query for performance
+    const studentIds = (students || []).map(s => s.id)
+    let checkinCounts: Record<string, number> = {}
+    let bookingCounts: Record<string, number> = {}
+
+    if (studentIds.length > 0) {
+      const { data: checkins } = await supabase
+        .from('checkins')
+        .select('student_id')
+        .in('student_id', studentIds)
+
+      if (checkins) {
+        checkins.forEach((c: any) => {
+          checkinCounts[c.student_id] = (checkinCounts[c.student_id] || 0) + 1
+        })
+      }
+
+      const { data: bookings } = await supabase
+        .from('bookings')
+        .select('student_id')
+        .in('student_id', studentIds)
+
+      if (bookings) {
+        bookings.forEach((b: any) => {
+          bookingCounts[b.student_id] = (bookingCounts[b.student_id] || 0) + 1
+        })
+      }
     }
 
     return NextResponse.json((students || []).map(s => ({
@@ -112,8 +116,12 @@ export async function GET(request: NextRequest) {
       isActive: s.is_active,
       avatarUrl: s.avatar_url,
       healthNotes: s.health_notes,
+      source: s.source || null,
       createdAt: s.created_at,
-      _count: { studentBookings: 0, checkins: 0 },
+      _count: {
+        studentBookings: bookingCounts[s.id] || 0,
+        checkins: checkinCounts[s.id] || 0,
+      },
     })))
   } catch (e) {
     console.error('Students GET error:', e)
@@ -147,7 +155,6 @@ export async function POST(request: NextRequest) {
     }
     const body = parsed.data
 
-    // Check if student already exists
     const existing = await prisma.profile.findFirst({
       where: { orgId: profile.org_id, email: body.email, role: 'STUDENT' },
     })
@@ -164,6 +171,7 @@ export async function POST(request: NextRequest) {
         birthDate: body.birthDate ? new Date(body.birthDate) : null,
         emergencyContact: body.emergencyContact || null,
         healthNotes: body.healthNotes || null,
+        source: body.source || 'direct',
       },
     })
 

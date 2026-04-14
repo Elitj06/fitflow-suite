@@ -11,10 +11,10 @@ export default function StudentDashboard() {
       {/* Header with greeting + QR */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-display text-2xl font-bold text-gray-900">
+          <h1 className="font-display text-2xl font-bold text-gray-900 dark:text-white">
             Ola, Ana! 💪
           </h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Voce esta em uma sequencia de 15 dias. Continue assim!
           </p>
         </div>
@@ -39,10 +39,10 @@ export default function StudentDashboard() {
         </div>
 
         {/* Streak */}
-        <div className="rounded-2xl border border-gray-200 bg-white p-6">
+        <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6">
           <Flame className="h-7 w-7 text-orange-500" />
-          <div className="mt-2 font-display text-3xl font-extrabold text-gray-900">15 dias</div>
-          <div className="text-sm text-gray-500">Sequencia atual</div>
+          <div className="mt-2 font-display text-3xl font-extrabold text-gray-900 dark:text-white">15 dias</div>
+          <div className="text-sm text-gray-500 dark:text-gray-400">Sequencia atual</div>
           <div className="mt-2 flex gap-1">
             {Array.from({ length: 7 }).map((_, i) => (
               <div key={i} className="h-2 flex-1 rounded-full bg-orange-400" />
@@ -51,10 +51,10 @@ export default function StudentDashboard() {
         </div>
 
         {/* Rank */}
-        <div className="rounded-2xl border border-gray-200 bg-white p-6">
+        <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6">
           <Trophy className="h-7 w-7 text-yellow-500" />
-          <div className="mt-2 font-display text-3xl font-extrabold text-gray-900">1o lugar</div>
-          <div className="text-sm text-gray-500">No ranking do studio</div>
+          <div className="mt-2 font-display text-3xl font-extrabold text-gray-900 dark:text-white">1o lugar</div>
+          <div className="text-sm text-gray-500 dark:text-gray-400">No ranking do studio</div>
           <div className="mt-2 flex items-center gap-1">
             {[1, 2, 3, 4, 5].map((s) => (
               <Star key={s} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
@@ -64,8 +64,8 @@ export default function StudentDashboard() {
       </div>
 
       {/* Upcoming bookings */}
-      <div className="rounded-2xl border border-gray-200 bg-white p-6">
-        <h2 className="font-display text-lg font-semibold text-gray-900">Proximas Aulas</h2>
+      <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6">
+        <h2 className="font-display text-lg font-semibold text-gray-900 dark:text-white">Proximas Aulas</h2>
         <div className="mt-4 space-y-3">
           {[
             { day: 'Hoje', time: '18:00', service: 'Personal Training', trainer: 'Eliandro', status: 'confirmed' },
@@ -75,11 +75,11 @@ export default function StudentDashboard() {
             <div key={i} className="flex items-center gap-4 rounded-xl border border-gray-100 bg-gray-50/50 p-4">
               <div className="text-center min-w-[60px]">
                 <div className="text-xs font-semibold text-brand-600 uppercase">{booking.day}</div>
-                <div className="font-display text-lg font-bold text-gray-900">{booking.time}</div>
+                <div className="font-display text-lg font-bold text-gray-900 dark:text-white">{booking.time}</div>
               </div>
               <div className="h-10 w-px bg-gray-200" />
               <div className="flex-1">
-                <div className="font-medium text-gray-900">{booking.service}</div>
+                <div className="font-medium text-gray-900 dark:text-white">{booking.service}</div>
                 <div className="text-xs text-gray-500">Com {booking.trainer}</div>
               </div>
               <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
@@ -93,9 +93,9 @@ export default function StudentDashboard() {
       </div>
 
       {/* Available rewards preview */}
-      <div className="rounded-2xl border border-gray-200 bg-white p-6">
+      <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6">
         <div className="flex items-center justify-between">
-          <h2 className="font-display text-lg font-semibold text-gray-900">Recompensas Disponiveis</h2>
+          <h2 className="font-display text-lg font-semibold text-gray-900 dark:text-white">Recompensas Disponiveis</h2>
           <a href="/coins/rewards" className="text-sm font-medium text-brand-600 hover:text-brand-700">Ver todas</a>
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
@@ -107,10 +107,10 @@ export default function StudentDashboard() {
             <div key={i} className="flex items-center gap-3 rounded-xl border border-gray-200 p-3 hover:border-brand-200 transition-colors cursor-pointer">
               <span className="text-2xl">{reward.emoji}</span>
               <div className="flex-1">
-                <div className="text-sm font-medium text-gray-900">{reward.name}</div>
+                <div className="text-sm font-medium text-gray-900 dark:text-white">{reward.name}</div>
                 <div className="flex items-center gap-1 text-xs">
                   <Coins className="h-3 w-3 text-yellow-500" />
-                  <span className="font-bold text-gray-700">{reward.coins}</span>
+                  <span className="font-bold text-gray-700 dark:text-gray-300">{reward.coins}</span>
                 </div>
               </div>
               {reward.affordable && (

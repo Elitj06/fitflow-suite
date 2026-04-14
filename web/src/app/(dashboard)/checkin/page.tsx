@@ -126,8 +126,8 @@ export default function CheckinPage() {
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-display text-2xl font-bold text-gray-900">Check-in</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <h1 className="font-display text-2xl font-bold text-gray-900 dark:text-white">Check-in</h1>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             {loading ? 'Carregando...' : `${waitingCount} aguardando, ${checkedCount} realizados`}
           </p>
         </div>
@@ -161,7 +161,7 @@ export default function CheckinPage() {
 
       {/* QR Mode */}
       {mode === 'qr' && (
-        <div className="rounded-2xl border border-gray-200 bg-white p-8 text-center">
+        <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-8 text-center">
           <div className="mx-auto max-w-sm">
             <div className="mx-auto flex h-64 w-64 items-center justify-center rounded-2xl border-2 border-dashed border-brand-300 bg-brand-50">
               <div className="text-center">
@@ -177,7 +177,7 @@ export default function CheckinPage() {
                 value={qrInput}
                 onChange={(e) => setQrInput(e.target.value)}
                 placeholder="Ou digite o ID do agendamento..."
-                className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
+                className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-900"
                 autoFocus
               />
               <p className="mt-3 text-xs text-gray-500">
@@ -198,7 +198,7 @@ export default function CheckinPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar aluno ou servico..."
-              className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-11 pr-4 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
+              className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 py-3 pl-11 pr-4 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-900"
             />
           </div>
 
@@ -242,7 +242,7 @@ export default function CheckinPage() {
                           <span className="rounded-full bg-green-100 px-1.5 py-0.5 text-[9px] font-bold text-green-700 flex-shrink-0">WA</span>
                         )}
                       </div>
-                      <div className="mt-0.5 flex items-center gap-3 text-sm text-gray-500">
+                      <div className="mt-0.5 flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400">
                         <span className="flex items-center gap-1">
                           <Clock className="h-3 w-3" />
                           {new Date(item.time).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
