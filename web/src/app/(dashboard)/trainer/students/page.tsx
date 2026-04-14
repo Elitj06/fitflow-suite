@@ -219,12 +219,12 @@ export default function StudentsPage() {
                       <td className="px-4 py-4">
                         <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${badge.color} ${badge.darkColor}`}>{badge.label}</span>
                       </td>
-                      <td className="px-4 py-4 text-center">
+                      {userRole === 'ADMIN' && <td className="px-4 py-4 text-center">
                         <div className="flex items-center justify-center gap-1">
                           <Coins className="h-3.5 w-3.5 text-yellow-500" />
                           <span className="text-sm font-semibold text-gray-900 dark:text-white">{s.coinsBalance}</span>
                         </div>
-                      </td>
+                      </td>}
                       <td className="px-4 py-4 text-center text-sm text-gray-700 dark:text-gray-300">{s._count.checkins}</td>
                       <td className="px-4 py-4 text-center">
                         <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
@@ -267,13 +267,11 @@ export default function StudentsPage() {
 
               {/* Stats */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-xl bg-yellow-50 dark:bg-yellow-900/20 p-3 text-center">
+                {userRole === 'ADMIN' && <div className="rounded-xl bg-yellow-50 dark:bg-yellow-900/20 p-3 text-center">
                   <Coins className="mx-auto h-5 w-5 text-yellow-600 dark:text-yellow-400" />
                   <div className="mt-1 font-display text-xl font-bold text-gray-900 dark:text-white">{selected.coinsBalance}</div>
-                }
                   <div className="text-[10px] text-gray-500 dark:text-gray-400">FitCoins</div>
-                }
-                </div>
+                </div>}
                 <div className="rounded-xl bg-brand-50 dark:bg-brand-900/20 p-3 text-center">
                   <Calendar className="mx-auto h-5 w-5 text-brand-600 dark:text-brand-400" />
                   <div className="mt-1 font-display text-xl font-bold text-gray-900 dark:text-white">{selected._count.checkins}</div>
