@@ -51,6 +51,7 @@ export default function SchedulePage() {
   const [cancelling, setCancelling] = useState(false)
   const [studentSearch, setStudentSearch] = useState('')
   const [showStudentDropdown, setShowStudentDropdown] = useState(false)
+  const [activePrescription, setActivePrescription] = useState<{ id: string; code: string; name: string | null; totalSessions: number; usedSessions: number } | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   const dateStr = currentDate.toISOString().split('T')[0]
@@ -103,6 +104,23 @@ export default function SchedulePage() {
     try {
       const pRes = await fetch('/api/prescriptions')
       if (pRes.ok) setPrescriptions(await pRes.json())
+    } catch {}
+  }
+
+  // Load active prescription when student is selected
+  async function loadActivePrescription(studentId: string) {
+    try {
+      const res = await fetch(`/api/trainer/student-detail?studentId=${studentId}`)
+      if (res.ok) {
+        const data = await res.json()
+        if (data.activePrescription) {
+          setActivePrescription(data.activePrescription)
+          setForm(f => ({ ...f, prescriptionId: data.activePrescription.id }))
+        } else {
+          setActivePrescription(null)
+          setForm(f => ({ ...f, prescriptionId: '' }))
+        }
+      }
     } catch {}
   }
 
@@ -387,6 +405,7 @@ export default function SchedulePage() {
                           setForm(p => ({ ...p, studentId: s.id }))
                           setStudentSearch(s.fullName)
                           setShowStudentDropdown(false)
+                          loadActivePrescription(s.id)
                         }}
                         className="w-full text-left px-4 py-2.5 text-sm hover:bg-brand-50 border-b border-gray-50 last:border-0"
                       >
@@ -415,16 +434,12 @@ export default function SchedulePage() {
                 </select>
               </div>
 
-              {/* Professional */}
+              {/* Professional - preenchido com professor logado */}
               <div>
-                <label className="block text-sm font-medium text-gray-700">Profissional *</label>
-                <select required value={form.trainerId} onChange={(e) => setForm((p) => ({ ...p, trainerId: e.target.value }))}
-                  className="mt-1 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100">
-                  <option value="">Selecionar profissional...</option>
-                  {trainers.map(t => (
-                    <option key={t.id} value={t.id}>{t.fullName}{myProfile && t.id === myProfile.id ? ' (eu)' : ''}</option>
-                  ))}
-                </select>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Profissional *</label>
+                <div className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+                  {myProfile?.fullName || 'Você'} (responsável)
+                </div>
               </div>
 
               {/* Date & Time */}
@@ -444,21 +459,31 @@ export default function SchedulePage() {
                 </div>
               </div>
 
-              {/* Prescription */}
+              {/* Prescription - auto-loaded from active */}
               <div>
-                <label className="block text-sm font-medium text-gray-700">Prescricao de Treino</label>
-                {form.studentId && prescriptions.filter(p => p.studentId === form.studentId).length > 0 && (
-                  <select value={form.prescriptionId} onChange={(e) => setForm((p) => ({ ...p, prescriptionId: e.target.value }))}
-                    className="mb-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100">
-                    <option value="">Sem prescricao vinculada</option>
-                    {prescriptions.filter(p => p.studentId === form.studentId).map((p) => (
-                      <option key={p.id} value={p.id}>{p.code}{p.name ? ` — ${p.name}` : ''}</option>
-                    ))}
-                  </select>
-                )}
-                <textarea rows={3} value={form.prescriptionText} placeholder="Descreva a prescricao de treino para esta sessao..."
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Prescricao de Treino</label>
+                {activePrescription ? (
+                  <div className="mt-1 rounded-xl border border-brand-200 dark:border-brand-800 bg-brand-50 dark:bg-brand-900/20 p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-brand-700 dark:text-brand-400">{activePrescription.code}</span>
+                      <span className="text-[10px] text-brand-600 dark:text-brand-400">Prescrição ativa — Laura usará esta</span>
+                    </div>
+                    {activePrescription.name && <div className="text-sm text-gray-700 dark:text-gray-300">{activePrescription.name}</div>}
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 rounded-full bg-gray-200 dark:bg-gray-700 h-2">
+                        <div className="rounded-full bg-brand-600 h-2 transition-all" style={{ width: `${Math.min(100, (activePrescription.usedSessions / activePrescription.totalSessions) * 100)}%` }} />
+                      </div>
+                      <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{activePrescription.usedSessions}/{activePrescription.totalSessions} treinos</span>
+                    </div>
+                  </div>
+                ) : form.studentId ? (
+                  <div className="mt-1 rounded-xl border border-dashed border-gray-300 dark:border-gray-600 p-3 text-center">
+                    <p className="text-xs text-gray-400 dark:text-gray-500">Nenhuma prescrição ativa para este aluno</p>
+                  </div>
+                ) : null}
+                <textarea rows={2} value={form.prescriptionText} placeholder="Notas adicionais sobre a prescrição..."
                   onChange={(e) => setForm((p) => ({ ...p, prescriptionText: e.target.value }))}
-                  className="mt-1 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 resize-none" />
+                  className="mt-2 w-full rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-3 text-sm text-gray-900 dark:text-white focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 resize-none" />
               </div>
 
               {/* Notes */}
