@@ -2,14 +2,16 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import {
-  Dumbbell, Plus, X, CheckCircle2, AlertCircle,
-  Loader2, User, ChevronDown,
+  Dumbbell, Plus, X, CheckCircle2,
+  Loader2, Edit3, History,
 } from 'lucide-react'
 
 interface Prescription {
   id: string
   code: string
   name: string | null
+  description: string | null
+  exercises: unknown
   totalSessions: number
   usedSessions: number
   isActive: boolean
@@ -25,12 +27,15 @@ interface Student {
   phone: string | null
 }
 
+type Tab = 'active' | 'history'
+
 export default function PrescriptionsPage() {
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([])
   const [students, setStudents] = useState<Student[]>([])
   const [loading, setLoading] = useState(true)
+  const [tab, setTab] = useState<Tab>('active')
   const [showModal, setShowModal] = useState(false)
-  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null)
+  const [editPrescription, setEditPrescription] = useState<Prescription | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
   // Form state
@@ -38,6 +43,7 @@ export default function PrescriptionsPage() {
   const [formCode, setFormCode] = useState('')
   const [formName, setFormName] = useState('')
   const [formSessions, setFormSessions] = useState('')
+  const [formDescription, setFormDescription] = useState('')
 
   const fetchPrescriptions = useCallback(async () => {
     setLoading(true)
@@ -54,29 +60,69 @@ export default function PrescriptionsPage() {
   useEffect(() => { fetchPrescriptions(); fetchStudents() }, [fetchPrescriptions, fetchStudents])
 
   const activePrescriptions = prescriptions.filter(p => p.isActive)
-  const inactivePrescriptions = selectedStudentId
-    ? prescriptions.filter(p => p.student.id === selectedStudentId && !p.isActive)
-    : []
+  const historyPrescriptions = prescriptions.filter(p => !p.isActive)
 
-  const handleCreate = async () => {
-    if (!formStudentId || !formCode || !formSessions) return
-    setSubmitting(true)
-    const res = await fetch('/api/prescriptions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        studentId: formStudentId,
-        code: formCode,
-        totalSessions: parseInt(formSessions),
-        name: formName || undefined,
-      }),
-    })
-    if (res.ok) {
-      setShowModal(false)
-      setFormStudentId(''); setFormCode(''); setFormName(''); setFormSessions('')
-      fetchPrescriptions()
+  const resetForm = () => {
+    setFormStudentId(''); setFormCode(''); setFormName(''); setFormSessions(''); setFormDescription('')
+  }
+
+  const openCreate = () => {
+    resetForm()
+    setEditPrescription(null)
+    setShowModal(true)
+  }
+
+  const openEdit = (p: Prescription) => {
+    setEditPrescription(p)
+    setFormStudentId(p.student.id)
+    setFormCode(p.code)
+    setFormName(p.name || '')
+    setFormSessions(String(p.totalSessions))
+    setFormDescription(p.description || '')
+    setShowModal(true)
+  }
+
+  const handleSubmit = async () => {
+    if (editPrescription) {
+      // Update
+      setSubmitting(true)
+      const res = await fetch(`/api/prescriptions/${editPrescription.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formName || null,
+          code: formCode,
+          totalSessions: parseInt(formSessions),
+          description: formDescription || null,
+        }),
+      })
+      if (res.ok) {
+        setShowModal(false)
+        fetchPrescriptions()
+      }
+      setSubmitting(false)
+    } else {
+      // Create
+      if (!formStudentId || !formCode || !formSessions) return
+      setSubmitting(true)
+      const res = await fetch('/api/prescriptions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentId: formStudentId,
+          code: formCode,
+          totalSessions: parseInt(formSessions),
+          name: formName || undefined,
+          description: formDescription || undefined,
+        }),
+      })
+      if (res.ok) {
+        setShowModal(false)
+        resetForm()
+        fetchPrescriptions()
+      }
+      setSubmitting(false)
     }
-    setSubmitting(false)
   }
 
   const handleDeactivate = async (id: string) => {
@@ -91,6 +137,8 @@ export default function PrescriptionsPage() {
   const progressPct = (p: Prescription) =>
     Math.min(100, Math.round((p.usedSessions / p.totalSessions) * 100))
 
+  const displayList = tab === 'active' ? activePrescriptions : historyPrescriptions
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -98,33 +146,52 @@ export default function PrescriptionsPage() {
           <Dumbbell className="h-8 w-8 text-indigo-500" />
           <div>
             <h1 className="text-2xl font-bold text-white">Prescrições de Treino</h1>
-            <p className="text-sm text-zinc-400">{activePrescriptions.length} ativa(s)</p>
+            <p className="text-sm text-zinc-400">{activePrescriptions.length} ativa(s) • {historyPrescriptions.length} no histórico</p>
           </div>
         </div>
         <button
-          onClick={() => setShowModal(true)}
+          onClick={openCreate}
           className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 transition"
         >
           <Plus className="h-4 w-4" /> Nova Prescrição
         </button>
       </div>
 
+      {/* Tabs */}
+      <div className="flex gap-1 rounded-lg bg-zinc-800/50 p-1 w-fit">
+        <button
+          onClick={() => setTab('active')}
+          className={`rounded-md px-4 py-1.5 text-sm font-medium transition ${
+            tab === 'active' ? 'bg-indigo-600 text-white' : 'text-zinc-400 hover:text-white'
+          }`}
+        >
+          Ativas ({activePrescriptions.length})
+        </button>
+        <button
+          onClick={() => setTab('history')}
+          className={`flex items-center gap-1.5 rounded-md px-4 py-1.5 text-sm font-medium transition ${
+            tab === 'history' ? 'bg-indigo-600 text-white' : 'text-zinc-400 hover:text-white'
+          }`}
+        >
+          <History className="h-3.5 w-3.5" /> Histórico ({historyPrescriptions.length})
+        </button>
+      </div>
+
       {loading ? (
         <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-zinc-500" /></div>
-      ) : activePrescriptions.length === 0 ? (
+      ) : displayList.length === 0 ? (
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-10 text-center">
           <Dumbbell className="mx-auto h-12 w-12 text-zinc-600" />
-          <p className="mt-3 text-zinc-400">Nenhuma prescrição ativa</p>
+          <p className="mt-3 text-zinc-400">
+            {tab === 'active' ? 'Nenhuma prescrição ativa' : 'Nenhum histórico'}
+          </p>
         </div>
       ) : (
         <div className="grid gap-4">
-          {activePrescriptions.map(p => (
+          {displayList.map(p => (
             <div
               key={p.id}
-              className={`rounded-xl border bg-zinc-900/50 p-4 cursor-pointer transition hover:border-zinc-600 ${
-                selectedStudentId === p.student.id ? 'border-indigo-500' : 'border-zinc-800'
-              }`}
-              onClick={() => setSelectedStudentId(selectedStudentId === p.student.id ? null : p.student.id)}
+              className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4 transition hover:border-zinc-600"
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -133,7 +200,10 @@ export default function PrescriptionsPage() {
                   </div>
                   <div>
                     <p className="font-medium text-white">{p.student.fullName}</p>
-                    <p className="text-xs text-zinc-400">{p.name || 'Sem nome'} • Início {new Date(p.startDate).toLocaleDateString('pt-BR')}</p>
+                    <p className="text-xs text-zinc-400">
+                      {p.name || 'Sem nome'} • Início {new Date(p.startDate).toLocaleDateString('pt-BR')}
+                      {p.completedAt && ` • Encerrada ${new Date(p.completedAt).toLocaleDateString('pt-BR')}`}
+                    </p>
                   </div>
                 </div>
                 <div className="text-right">
@@ -149,57 +219,71 @@ export default function PrescriptionsPage() {
                 </div>
               </div>
 
-              <div className="mt-3 flex gap-2">
-                <button
-                  onClick={(e) => { e.stopPropagation(); handleDeactivate(p.id) }}
-                  className="rounded-md border border-zinc-700 px-3 py-1 text-xs text-zinc-400 hover:bg-zinc-800 transition"
-                >
-                  Encerrar
-                </button>
-              </div>
-
-              {/* History for selected student */}
-              {selectedStudentId === p.student.id && inactivePrescriptions.length > 0 && (
-                <div className="mt-4 border-t border-zinc-800 pt-3">
-                  <p className="text-xs font-medium text-zinc-400 mb-2">Histórico de prescrições</p>
-                  {inactivePrescriptions.map(ip => (
-                    <div key={ip.id} className="flex items-center justify-between py-1.5 text-sm">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs text-zinc-500">{ip.code}</span>
-                        <span className="text-zinc-300">{ip.name || '—'}</span>
-                      </div>
-                      <span className="text-xs text-zinc-500">{ip.usedSessions}/{ip.totalSessions}</span>
-                    </div>
-                  ))}
+              {p.description && (
+                <div className="mt-3 rounded-lg bg-zinc-800/50 p-3 text-sm text-zinc-300 whitespace-pre-wrap">
+                  {p.description}
                 </div>
               )}
+
+              <div className="mt-3 flex gap-2">
+                {p.isActive && (
+                  <>
+                    <button
+                      onClick={() => openEdit(p)}
+                      className="flex items-center gap-1 rounded-md border border-zinc-700 px-3 py-1 text-xs text-zinc-400 hover:bg-zinc-800 transition"
+                    >
+                      <Edit3 className="h-3 w-3" /> Editar
+                    </button>
+                    <button
+                      onClick={() => handleDeactivate(p.id)}
+                      className="rounded-md border border-zinc-700 px-3 py-1 text-xs text-zinc-400 hover:bg-zinc-800 transition"
+                    >
+                      Encerrar
+                    </button>
+                  </>
+                )}
+                {!p.isActive && (
+                  <span className="flex items-center gap-1 text-xs text-zinc-500">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    {p.usedSessions >= p.totalSessions ? 'Completada' : 'Encerrada'}
+                  </span>
+                )}
+              </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* Modal: Nova Prescrição */}
+      {/* Modal: Nova/Editar Prescrição */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-zinc-700 bg-zinc-900 p-6">
+          <div className="w-full max-w-md rounded-2xl border border-zinc-700 bg-zinc-900 p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-white">Nova Prescrição</h2>
+              <h2 className="text-lg font-bold text-white">
+                {editPrescription ? 'Editar Prescrição' : 'Nova Prescrição'}
+              </h2>
               <button onClick={() => setShowModal(false)}><X className="h-5 w-5 text-zinc-400" /></button>
             </div>
 
             <div className="space-y-4">
               <div>
                 <label className="block text-sm text-zinc-400 mb-1">Aluno</label>
-                <select
-                  value={formStudentId}
-                  onChange={e => setFormStudentId(e.target.value)}
-                  className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-white text-sm"
-                >
-                  <option value="">Selecionar aluno...</option>
-                  {students.map(s => (
-                    <option key={s.id} value={s.id}>{s.fullName}</option>
-                  ))}
-                </select>
+                {editPrescription ? (
+                  <div className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-zinc-400 text-sm">
+                    {editPrescription.student.fullName}
+                  </div>
+                ) : (
+                  <select
+                    value={formStudentId}
+                    onChange={e => setFormStudentId(e.target.value)}
+                    className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-white text-sm"
+                  >
+                    <option value="">Selecionar aluno...</option>
+                    {students.map(s => (
+                      <option key={s.id} value={s.id}>{s.fullName}</option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -234,12 +318,23 @@ export default function PrescriptionsPage() {
                 />
               </div>
 
+              <div>
+                <label className="block text-sm text-zinc-400 mb-1">Descrição do treino</label>
+                <textarea
+                  value={formDescription}
+                  onChange={e => setFormDescription(e.target.value)}
+                  placeholder={"Supino 4x12\nAgachamento 4x10\nRemada 3x12\nDesenvolvimento 3x10"}
+                  rows={4}
+                  className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-white text-sm resize-none"
+                />
+              </div>
+
               <button
-                onClick={handleCreate}
-                disabled={submitting || !formStudentId || !formCode || !formSessions}
+                onClick={handleSubmit}
+                disabled={submitting || (!editPrescription && (!formStudentId || !formCode || !formSessions))}
                 className="w-full rounded-lg bg-indigo-600 py-2.5 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50 transition"
               >
-                {submitting ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : 'Criar Prescrição'}
+                {submitting ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : editPrescription ? 'Salvar Alterações' : 'Criar Prescrição'}
               </button>
             </div>
           </div>
