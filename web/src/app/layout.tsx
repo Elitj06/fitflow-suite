@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import '@/styles/globals.css'
 import { Toaster } from 'sonner'
+import { ThemeProvider } from '@/lib/theme'
 
 export const metadata: Metadata = {
   title: {
@@ -39,8 +40,10 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="min-h-screen antialiased">
+      <body className="min-h-screen antialiased bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 transition-colors">
+        <ThemeProvider>
         {children}
+        </ThemeProvider>
         <Toaster
           position="top-right"
           richColors
