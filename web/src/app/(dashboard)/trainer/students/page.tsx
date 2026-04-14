@@ -39,6 +39,7 @@ export default function StudentsPage() {
   const [saving, setSaving] = useState(false)
   const [addForm, setAddForm] = useState({ fullName: '', email: '', phone: '' })
   const [addError, setAddError] = useState('')
+  const [prescriptions, setPrescriptions] = useState<any[]>([])
 
   const loadStudents = useCallback(async () => {
     setLoading(true)
@@ -59,6 +60,10 @@ export default function StudentsPage() {
   }, [search, filter])
 
   useEffect(() => { loadStudents() }, [loadStudents])
+
+  useEffect(() => {
+    fetch('/api/prescriptions').then(r => r.ok ? r.json() : []).then(setPrescriptions).catch(() => {})
+  }, [])
 
   async function handleAddStudent() {
     if (!addForm.fullName || !addForm.email) return
@@ -195,46 +200,100 @@ export default function StudentsPage() {
       {/* Student detail */}
       {selected && (
         <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-sm" onClick={() => setSelected(null)}>
-          <div className="w-full max-w-md bg-white shadow-2xl overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="sticky top-0 flex items-center justify-between border-b border-gray-100 bg-white px-6 py-4">
-              <h3 className="font-display text-lg font-bold text-gray-900">Detalhes do Aluno</h3>
-              <button onClick={() => setSelected(null)} className="rounded-lg p-1 hover:bg-gray-100"><X className="h-5 w-5 text-gray-500" /></button>
+          <div className="w-full max-w-md bg-white dark:bg-gray-900 shadow-2xl overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="sticky top-0 flex items-center justify-between border-b border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-900 px-6 py-4">
+              <h3 className="font-display text-lg font-bold text-gray-900 dark:text-white">Detalhes do Aluno</h3>
+              <button onClick={() => setSelected(null)} className="rounded-lg p-1 hover:bg-gray-100 dark:hover:bg-gray-800"><X className="h-5 w-5 text-gray-500 dark:text-gray-400" /></button>
             </div>
             <div className="p-6 space-y-6">
+              {/* Header */}
               <div className="flex items-center gap-4">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-100 text-xl font-bold text-brand-700">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-100 dark:bg-brand-900/30 text-xl font-bold text-brand-700 dark:text-brand-300">
                   {selected.fullName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
                 </div>
                 <div>
-                  <div className="text-lg font-bold text-gray-900">{selected.fullName}</div>
+                  <div className="text-lg font-bold text-gray-900 dark:text-white">{selected.fullName}</div>
                   <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-bold mt-1 ${SOURCE_BADGE[getSource(selected.healthNotes)].color}`}>
                     {SOURCE_BADGE[getSource(selected.healthNotes)].label}
                   </span>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-3">
-                <div className="rounded-xl bg-yellow-50 p-3 text-center">
-                  <Coins className="mx-auto h-5 w-5 text-yellow-600" />
-                  <div className="mt-1 font-display text-xl font-bold text-gray-900">{selected.coinsBalance}</div>
-                  <div className="text-[10px] text-gray-500">FitCoins</div>
+
+              {/* Stats - 2 cards only */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl bg-yellow-50 dark:bg-yellow-900/20 p-3 text-center">
+                  <Coins className="mx-auto h-5 w-5 text-yellow-600 dark:text-yellow-400" />
+                  <div className="mt-1 font-display text-xl font-bold text-gray-900 dark:text-white">{selected.coinsBalance}</div>
+                  <div className="text-[10px] text-gray-500 dark:text-gray-400">FitCoins</div>
                 </div>
-                <div className="rounded-xl bg-brand-50 p-3 text-center">
-                  <Calendar className="mx-auto h-5 w-5 text-brand-600" />
-                  <div className="mt-1 font-display text-xl font-bold text-gray-900">{selected._count.studentBookings}</div>
-                  <div className="text-[10px] text-gray-500">Aulas</div>
-                </div>
-                <div className="rounded-xl bg-green-50 p-3 text-center">
-                  <CheckCircle2 className="mx-auto h-5 w-5 text-green-600" />
-                  <div className="mt-1 font-display text-xl font-bold text-gray-900">{selected._count.checkins}</div>
-                  <div className="text-[10px] text-gray-500">Check-ins</div>
+                <div className="rounded-xl bg-brand-50 dark:bg-brand-900/20 p-3 text-center">
+                  <Calendar className="mx-auto h-5 w-5 text-brand-600 dark:text-brand-400" />
+                  <div className="mt-1 font-display text-xl font-bold text-gray-900 dark:text-white">{selected._count.checkins}</div>
+                  <div className="text-[10px] text-gray-500 dark:text-gray-400">Aulas realizadas</div>
                 </div>
               </div>
-              <div className="space-y-3">
-                <div className="flex items-center gap-3 text-sm"><Mail className="h-4 w-4 text-gray-400" /><span className="text-gray-700">{selected.email}</span></div>
-                {selected.phone && <div className="flex items-center gap-3 text-sm"><Phone className="h-4 w-4 text-gray-400" /><span className="text-gray-700">{selected.phone}</span></div>}
+
+              {/* Contact */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-3 text-sm text-gray-700 dark:text-gray-300"><Mail className="h-4 w-4 text-gray-400" /><span>{selected.email}</span></div>
+                {selected.phone && <div className="flex items-center gap-3 text-sm text-gray-700 dark:text-gray-300"><Phone className="h-4 w-4 text-gray-400" /><span>{selected.phone}</span></div>}
               </div>
+
+              {/* Active Prescription */}
+              {(() => {
+                const activeP = prescriptions.find(p => p.studentId === selected.id && p.isActive)
+                if (!activeP) return (
+                  <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-600 p-4 text-center">
+                    <p className="text-xs text-gray-400 dark:text-gray-500">Sem prescrição ativa</p>
+                  </div>
+                )
+                return (
+                  <div className="rounded-xl border border-brand-200 dark:border-brand-800 bg-brand-50 dark:bg-brand-900/20 p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-semibold text-brand-700 dark:text-brand-400">Prescrição Ativa</h4>
+                      <span className="rounded-full bg-green-100 dark:bg-green-900/30 px-2 py-0.5 text-[10px] font-bold text-green-700 dark:text-green-400">ATIVA</span>
+                    </div>
+                    <div className="text-xs text-gray-600 dark:text-gray-300">{activeP.code}{activeP.name ? ` — ${activeP.name}` : ''}</div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 rounded-full bg-gray-200 dark:bg-gray-700 h-2.5">
+                        <div className="rounded-full bg-brand-600 h-2.5 transition-all" style={{ width: `${Math.min(100, (activeP.usedSessions / activeP.totalSessions) * 100)}%` }} />
+                      </div>
+                      <span className="text-xs font-bold text-gray-700 dark:text-gray-300">{activeP.usedSessions}/{activeP.totalSessions}</span>
+                    </div>
+                    <div className="text-[10px] text-gray-500 dark:text-gray-400">Treinos executados na prescrição atual</div>
+                  </div>
+                )
+              })()}
+
+              {/* Prescription History */}
+              {(() => {
+                const history = prescriptions.filter(p => p.studentId === selected.id)
+                if (history.length === 0) return null
+                return (
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Histórico de Prescrições</h4>
+                    <div className="space-y-2 max-h-40 overflow-y-auto">
+                      {history.map(p => (
+                        <div key={p.id} className={`rounded-lg border px-3 py-2 ${p.isActive ? 'border-brand-200 dark:border-brand-800 bg-brand-50 dark:bg-brand-900/20' : 'border-gray-100 dark:border-gray-700'}`}>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-gray-700 dark:text-gray-300">{p.code}{p.name ? ` — ${p.name}` : ''}</span>
+                            {p.isActive ? (
+                              <span className="text-[10px] font-bold text-green-600 dark:text-green-400">Atual</span>
+                            ) : (
+                              <span className="text-[10px] text-gray-400">{p.usedSessions}/{p.totalSessions} treinos</span>
+                            )}
+                          </div>
+                          {!p.isActive && <div className="text-[10px] text-gray-400 mt-0.5">{p.usedSessions} de {p.totalSessions} treinos realizados</div>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })()}
+
+              {/* Actions */}
               <div className="flex gap-3">
-                <button onClick={() => setSelected(null)} className="flex-1 rounded-xl border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50">Fechar</button>
+                <button onClick={() => setSelected(null)} className="flex-1 rounded-xl border border-gray-300 dark:border-gray-600 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800">Fechar</button>
                 <a href={`/schedule?studentId=${selected.id}`} className="flex-1 text-center rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">Agendar Aula</a>
               </div>
             </div>
