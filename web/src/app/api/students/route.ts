@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
 
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('org_id, role')
+      .select('id, org_id, role')
       .eq('user_id', user.id)
       .single()
 
@@ -73,8 +73,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Query failed' }, { status: 500 })
     }
 
-    // Client-side search filter (more reliable than Supabase .or() combined with .eq())
+    // TRAINER: only show students who have bookings with this trainer
     let filtered = students || []
+    if (profile.role === 'TRAINER') {
+      const trainerId = profile.id
+      const { data: trainerBookings } = await supabase
+        .from('bookings')
+        .select('student_id')
+        .eq('trainer_id', trainerId)
+      const trainerStudentIds = new Set((trainerBookings || []).map((b: any) => b.student_id))
+      filtered = filtered.filter((s: any) => trainerStudentIds.has(s.id))
+    }
+
+    // Client-side search filter (more reliable than Supabase .or() combined with .eq())
     if (search && search.trim().length >= 2) {
       const term = search.trim().toLowerCase()
       filtered = filtered.filter((s: any) =>
@@ -146,7 +157,7 @@ export async function POST(request: NextRequest) {
 
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('org_id, role')
+      .select('id, org_id, role')
       .eq('user_id', user.id)
       .single()
 
