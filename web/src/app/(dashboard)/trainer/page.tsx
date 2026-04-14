@@ -157,7 +157,7 @@ export default function TrainerDashboard() {
           <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6">
             <h2 className="font-display text-lg font-semibold text-gray-900 dark:text-white">Acoes Rapidas</h2>
             <div className="mt-4 grid grid-cols-2 gap-3">
-              {[{href:'/checkin',icon:QrCode,label:'Check-in'},{href:'/trainer/students',icon:Users,label:'Alunos'},{href:'/trainer/prescriptions',icon:Dumbbell,label:'Prescrições'},{href:'/trainer/schedule',icon:Calendar,label:'Minha Agenda'}].map(a => (
+              {[{href:'/trainer/students',icon:Users,label:'Alunos'},{href:'/trainer/prescriptions',icon:Dumbbell,label:'Prescrições'},{href:'/trainer/schedule',icon:Calendar,label:'Minha Agenda'}].map(a => (:Dumbbell,label:'Prescrições'},{href:'/trainer/schedule',icon:Calendar,label:'Minha Agenda'}].map(a => (
                 <Link key={a.href} href={a.href} className="flex flex-col items-center gap-2 rounded-xl border border-gray-200 p-4 text-center transition-all hover:border-brand-300 hover:bg-brand-50">
                   <a.icon className="h-6 w-6 text-brand-600" />
                   <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{a.label}</span>

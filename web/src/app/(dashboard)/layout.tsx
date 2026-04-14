@@ -59,7 +59,7 @@ const allNavItems = [
     label: 'Check-in',
     href: '/checkin',
     icon: QrCode,
-    roles: ['ADMIN', 'TRAINER'],
+    roles: ['ADMIN'],
   },
   {
     label: 'FitCoins',
