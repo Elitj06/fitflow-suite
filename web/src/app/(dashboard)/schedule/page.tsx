@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   ChevronLeft, ChevronRight, Plus,
   Clock, X, CheckCircle2, Loader2,
@@ -23,6 +23,7 @@ interface Booking {
 
 interface Service { id: string; name: string; durationMinutes: number; price: number; color: string; maxCapacity: number }
 interface StudentProfile { id: string; fullName: string }
+interface TrainerProfile { id: string; fullName: string }
 
 const HOURS = Array.from({ length: 17 }, (_, i) => `${(i + 6).toString().padStart(2, '0')}:00`)
 const DAYS_PT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab']
@@ -42,13 +43,28 @@ export default function SchedulePage() {
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null)
   const [services, setServices] = useState<Service[]>([])
   const [students, setStudents] = useState<StudentProfile[]>([])
-  const [myProfile, setMyProfile] = useState<{ id: string } | null>(null)
+  const [trainers, setTrainers] = useState<TrainerProfile[]>([])
+  const [myProfile, setMyProfile] = useState<{ id: string; fullName: string; role: string } | null>(null)
   const [prescriptions, setPrescriptions] = useState<{ id: string; code: string; name: string | null; studentId: string }[]>([])
-  const [form, setForm] = useState({ studentId: '', serviceId: '', date: '', hour: '08:00', notes: '', prescriptionId: '' })
+  const [form, setForm] = useState({ studentId: '', serviceId: '', trainerId: '', date: '', hour: '08:00', notes: '', prescriptionText: '', prescriptionId: '' })
   const [saving, setSaving] = useState(false)
   const [cancelling, setCancelling] = useState(false)
+  const [studentSearch, setStudentSearch] = useState('')
+  const [showStudentDropdown, setShowStudentDropdown] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
 
   const dateStr = currentDate.toISOString().split('T')[0]
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowStudentDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
 
   async function loadBookings() {
     setLoading(true)
@@ -73,7 +89,16 @@ export default function SchedulePage() {
       const list = await stRes.json()
       setStudents(list.map((s: any) => ({ id: s.id, fullName: s.fullName })))
     }
-    if (profileRes.ok) setMyProfile(await profileRes.json())
+    if (profileRes.ok) {
+      const prof = await profileRes.json()
+      setMyProfile(prof)
+      setForm(f => ({ ...f, trainerId: prof.id }))
+    }
+    // Load trainers
+    try {
+      const tRes = await fetch('/api/trainers')
+      if (tRes.ok) setTrainers(await tRes.json())
+    } catch {}
     // Load active prescriptions
     try {
       const pRes = await fetch('/api/prescriptions')
@@ -96,15 +121,20 @@ export default function SchedulePage() {
     setSaving(true)
     try {
       const startsAt = new Date(`${form.date}T${form.hour}:00`)
+      const notesCombined = [
+        form.prescriptionText ? `[Prescrição]: ${form.prescriptionText}` : '',
+        form.notes || '',
+      ].filter(Boolean).join('\n')
+
       const res = await fetch('/api/bookings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           serviceId: form.serviceId,
-          trainerId: myProfile?.id,
+          trainerId: form.trainerId || myProfile?.id,
           studentId: form.studentId,
           startsAt: startsAt.toISOString(),
-          notes: form.notes || null,
+          notes: notesCombined || null,
           prescriptionId: form.prescriptionId || undefined,
         }),
       })
@@ -115,7 +145,8 @@ export default function SchedulePage() {
       }
       toast.success('Agendamento criado com sucesso!')
       setShowNewBooking(false)
-      setForm({ studentId: '', serviceId: '', date: '', hour: '08:00', notes: '', prescriptionId: '' })
+      setForm({ studentId: '', serviceId: '', trainerId: myProfile?.id || '', date: '', hour: '08:00', notes: '', prescriptionText: '', prescriptionId: '' })
+      setStudentSearch('')
       loadBookings()
     } catch (e) {
       toast.error('Erro de conexao')
@@ -155,6 +186,10 @@ export default function SchedulePage() {
   }, {})
 
   const confirmedCount = bookings.filter((b) => b.status === 'CONFIRMED' || b.status === 'COMPLETED').length
+
+  const filteredStudents = students
+    .filter(s => !studentSearch || s.fullName.toLowerCase().includes(studentSearch.toLowerCase()))
+    .slice(0, 30)
 
   return (
     <div className="space-y-6">
@@ -224,12 +259,11 @@ export default function SchedulePage() {
                               {b.source === 'WHATSAPP' && <span className="rounded-full bg-green-100 px-1.5 py-0.5 text-[9px] font-bold text-green-700">WA</span>}
                             </div>
                             <div className="mt-1 text-sm font-medium text-gray-800 truncate">{b.student.fullName}</div>
-                            <div className="text-xs text-gray-500 truncate">{b.service.name}</div>
+                            <div className="text-xs text-gray-500 truncate">{b.service.name} • {b.trainer.fullName}</div>
                           </button>
                         ))}
                       </div>
                     ) : null}
-                    {/* Always show + button to allow adding more students to a slot */}
                     <button onClick={() => { setForm((f) => ({ ...f, date: dateStr, hour, prescriptionId: '' })); setShowNewBooking(true) }}
                       className="flex items-center gap-1 rounded-lg border border-dashed border-gray-200 px-3 py-1 text-xs text-gray-400 hover:border-brand-300 hover:text-brand-500 hover:bg-brand-50/50 transition-all mt-1">
                       <Plus className="h-3 w-3" /> Agendar
@@ -271,6 +305,10 @@ export default function SchedulePage() {
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Profissional</span>
+                  <span className="font-medium">{selectedBooking.trainer.fullName}</span>
+                </div>
+                <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Status</span>
                   <span className={cn('rounded-full px-2 py-0.5 text-xs font-semibold border', STATUS_CONFIG[selectedBooking.status]?.color)}>
                     {STATUS_CONFIG[selectedBooking.status]?.label || selectedBooking.status}
@@ -280,6 +318,12 @@ export default function SchedulePage() {
                   <span className="text-gray-500">Origem</span>
                   <span className="font-medium">{selectedBooking.source === 'WHATSAPP' ? 'WhatsApp' : selectedBooking.source === 'WEB' ? 'App' : 'Manual'}</span>
                 </div>
+                {selectedBooking.notes && (
+                  <div className="pt-2 border-t border-gray-200">
+                    <span className="text-xs text-gray-500">Observacoes</span>
+                    <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">{selectedBooking.notes}</p>
+                  </div>
+                )}
               </div>
             </div>
             <div className="mt-6 grid grid-cols-2 gap-3">
@@ -306,7 +350,7 @@ export default function SchedulePage() {
       {/* New booking modal */}
       {showNewBooking && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+          <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
             <div className="flex items-center justify-between mb-6">
               <h3 className="font-display text-lg font-bold text-gray-900">Novo Agendamento</h3>
               <button onClick={() => setShowNewBooking(false)} className="rounded-lg p-1 hover:bg-gray-100">
@@ -314,14 +358,54 @@ export default function SchedulePage() {
               </button>
             </div>
             <form onSubmit={createBooking} className="space-y-4">
-              <div>
+              {/* Student search */}
+              <div className="relative" ref={dropdownRef}>
                 <label className="block text-sm font-medium text-gray-700">Aluno *</label>
-                <select required value={form.studentId} onChange={(e) => setForm((p) => ({ ...p, studentId: e.target.value }))}
-                  className="mt-1 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100">
-                  <option value="">Selecionar aluno...</option>
-                  {students.map((s) => <option key={s.id} value={s.id}>{s.fullName}</option>)}
-                </select>
+                <input
+                  type="text"
+                  placeholder="Buscar aluno por nome..."
+                  value={studentSearch}
+                  onChange={(e) => {
+                    setStudentSearch(e.target.value)
+                    setShowStudentDropdown(true)
+                    if (form.studentId) setForm(p => ({ ...p, studentId: '' }))
+                  }}
+                  onFocus={() => setShowStudentDropdown(true)}
+                  className={cn(
+                    "mt-1 w-full rounded-xl border px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-100",
+                    form.studentId ? "border-green-400 bg-green-50/50 focus:border-green-500" : "border-gray-300 focus:border-brand-500"
+                  )}
+                />
+                {form.studentId && (
+                  <span className="absolute right-3 top-[38px] text-green-600 text-xs font-semibold">✓</span>
+                )}
+                {showStudentDropdown && !form.studentId && (
+                  <div className="absolute z-50 mt-1 w-full max-h-48 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-lg">
+                    {filteredStudents.length > 0 ? filteredStudents.map(s => (
+                      <button key={s.id} type="button"
+                        onClick={() => {
+                          setForm(p => ({ ...p, studentId: s.id }))
+                          setStudentSearch(s.fullName)
+                          setShowStudentDropdown(false)
+                        }}
+                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-brand-50 border-b border-gray-50 last:border-0"
+                      >
+                        {s.fullName}
+                      </button>
+                    )) : (
+                      <div className="px-4 py-3 text-sm text-gray-400">Nenhum aluno encontrado</div>
+                    )}
+                    {students.length > 30 && filteredStudents.length > 0 && studentSearch && (
+                      <div className="px-4 py-2 text-xs text-gray-400 border-t">
+                        Mostrando {filteredStudents.length} de {students.filter(s => s.fullName.toLowerCase().includes(studentSearch.toLowerCase())).length} resultados
+                      </div>
+                    )}
+                  </div>
+                )}
+                <input type="hidden" value={form.studentId} />
               </div>
+
+              {/* Service */}
               <div>
                 <label className="block text-sm font-medium text-gray-700">Servico *</label>
                 <select required value={form.serviceId} onChange={(e) => setForm((p) => ({ ...p, serviceId: e.target.value }))}
@@ -330,6 +414,20 @@ export default function SchedulePage() {
                   {services.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.durationMinutes}min — R$ {s.price})</option>)}
                 </select>
               </div>
+
+              {/* Professional */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Profissional *</label>
+                <select required value={form.trainerId} onChange={(e) => setForm((p) => ({ ...p, trainerId: e.target.value }))}
+                  className="mt-1 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100">
+                  <option value="">Selecionar profissional...</option>
+                  {trainers.map(t => (
+                    <option key={t.id} value={t.id}>{t.fullName}{myProfile && t.id === myProfile.id ? ' (eu)' : ''}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Date & Time */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Data *</label>
@@ -345,28 +443,39 @@ export default function SchedulePage() {
                   </select>
                 </div>
               </div>
+
+              {/* Prescription */}
               <div>
                 <label className="block text-sm font-medium text-gray-700">Prescricao de Treino</label>
-                <select value={form.prescriptionId} onChange={(e) => setForm((p) => ({ ...p, prescriptionId: e.target.value }))}
-                  className="mt-1 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100">
-                  <option value="">Sem prescricao (livre)</option>
-                  {prescriptions.filter(p => !form.studentId || p.studentId === form.studentId).map((p) => (
-                    <option key={p.id} value={p.id}>{p.code}{p.name ? ` — ${p.name}` : ''}</option>
-                  ))}
-                </select>
+                {form.studentId && prescriptions.filter(p => p.studentId === form.studentId).length > 0 && (
+                  <select value={form.prescriptionId} onChange={(e) => setForm((p) => ({ ...p, prescriptionId: e.target.value }))}
+                    className="mb-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100">
+                    <option value="">Sem prescricao vinculada</option>
+                    {prescriptions.filter(p => p.studentId === form.studentId).map((p) => (
+                      <option key={p.id} value={p.id}>{p.code}{p.name ? ` — ${p.name}` : ''}</option>
+                    ))}
+                  </select>
+                )}
+                <textarea rows={3} value={form.prescriptionText} placeholder="Descreva a prescricao de treino para esta sessao..."
+                  onChange={(e) => setForm((p) => ({ ...p, prescriptionText: e.target.value }))}
+                  className="mt-1 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 resize-none" />
               </div>
+
+              {/* Notes */}
               <div>
                 <label className="block text-sm font-medium text-gray-700">Observacoes</label>
                 <textarea rows={2} value={form.notes} placeholder="Notas sobre a sessao..."
                   onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}
                   className="mt-1 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 resize-none" />
               </div>
+
+              {/* Submit */}
               <div className="flex gap-3">
                 <button type="button" onClick={() => setShowNewBooking(false)}
                   className="flex-1 rounded-xl border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50">
                   Cancelar
                 </button>
-                <button type="submit" disabled={saving}
+                <button type="submit" disabled={saving || !form.studentId}
                   className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60">
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle2 className="h-4 w-4" /> Agendar</>}
                 </button>
