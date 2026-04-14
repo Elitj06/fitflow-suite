@@ -57,9 +57,10 @@ export async function GET(request: NextRequest) {
     where,
     include: {
       service: { select: { name: true, color: true, durationMinutes: true, coinsReward: true } },
-      trainer: { select: { fullName: true } },
-      student: { select: { fullName: true, avatarUrl: true } },
+      trainer: { select: { id: true, fullName: true } },
+      student: { select: { id: true, fullName: true, avatarUrl: true } },
       checkin: true,
+      prescription: { select: { id: true, code: true, name: true, totalSessions: true, usedSessions: true, isActive: true } },
     },
     orderBy: { startsAt: 'asc' },
   })

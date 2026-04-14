@@ -16,10 +16,12 @@ interface Booking {
   status: string
   source: string
   notes: string | null
+  dayNotes: string | null
   service: { name: string; color: string; durationMinutes: number }
   student: { id: string; fullName: string }
   trainer: { id: string; fullName: string }
   checkin: { id: string; checkedInAt: string } | null
+  prescription?: { id: string; code: string; name: string | null; totalSessions: number; usedSessions: number; isActive: boolean } | null
 }
 
 interface StudentDetail {
@@ -70,6 +72,10 @@ export default function TrainerSchedulePage() {
   const [showNewPrescription, setShowNewPrescription] = useState(false)
   const [newPrescName, setNewPrescName] = useState('')
   const [newPrescSessions, setNewPrescSessions] = useState('')
+  // dayNotes editing state: bookingId -> edited value
+  const [editingDayNotes, setEditingDayNotes] = useState<Record<string, string>>({})
+  const [savingDayNotes, setSavingDayNotes] = useState<string | null>(null)
+  const [updatingStatus, setUpdatingStatus] = useState<string | null>(null)
 
   const dateStr = currentDate.toISOString().split('T')[0]
 
@@ -89,7 +95,6 @@ export default function TrainerSchedulePage() {
       const res = await fetch(`/api/bookings?date=${dateStr}`)
       if (res.ok) {
         const all = await res.json()
-        // Filter to only this trainer's bookings
         setBookings(all.filter((b: Booking) => b.trainer?.id === myProfile?.id))
       }
     } catch { toast.error('Erro ao carregar agenda') }
@@ -167,6 +172,41 @@ export default function TrainerSchedulePage() {
     finally { setSaving(false) }
   }
 
+  async function updateBookingStatus(bookingId: string, status: string) {
+    setUpdatingStatus(bookingId)
+    try {
+      const res = await fetch(`/api/bookings/${bookingId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      })
+      if (res.ok) {
+        toast.success(status === 'COMPLETED' ? 'Presença registrada ✅' : 'Falta registrada ❌')
+        loadBookings()
+      } else {
+        const data = await res.json()
+        toast.error(data.error || 'Erro ao atualizar')
+      }
+    } catch { toast.error('Erro de conexão') }
+    finally { setUpdatingStatus(null) }
+  }
+
+  async function saveDayNotes(bookingId: string) {
+    setSavingDayNotes(bookingId)
+    try {
+      const res = await fetch(`/api/bookings/${bookingId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dayNotes: editingDayNotes[bookingId] ?? '' }),
+      })
+      if (res.ok) {
+        toast.success('Observações do dia salvas')
+        setBookings(bs => bs.map(b => b.id === bookingId ? { ...b, dayNotes: editingDayNotes[bookingId] ?? '' } : b))
+      }
+    } catch { toast.error('Erro de conexão') }
+    finally { setSavingDayNotes(null) }
+  }
+
   const bookingsByHour = HOURS.reduce<Record<string, Booking[]>>((acc, h) => {
     acc[h] = bookings.filter(b => formatTime(b.startsAt) === h)
     return acc
@@ -182,7 +222,6 @@ export default function TrainerSchedulePage() {
     return source
   }
 
-  // Calculate attendance regularity
   function getRegularity(bookings: StudentDetail['recentBookings']) {
     if (bookings.length === 0) return { rate: 0, label: 'Sem dados', color: 'text-gray-400' }
     const completed = bookings.filter(b => b.checkin || b.status === 'COMPLETED').length
@@ -252,11 +291,14 @@ export default function TrainerSchedulePage() {
                   <span className="text-xs font-medium text-gray-400 dark:text-gray-500">{hour}</span>
                 </div>
                 <div className="flex-1 p-2 space-y-2">
-                  {bookingsByHour[hour].map(b => (
-                    <button key={b.id} onClick={() => loadStudentDetail(b.student.id)}
-                      className="w-full text-left rounded-xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800/50 p-3 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all">
+                  {bookingsByHour[hour].map(b => {
+                    const isDone = b.status === 'COMPLETED' || b.status === 'NO_SHOW' || b.status === 'CANCELLED'
+                    return (
+                    <div key={b.id}
+                      className="w-full rounded-xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800/50 p-3 shadow-sm hover:shadow-md transition-all">
+                      {/* Row 1: Student info + status + actions */}
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
+                        <button onClick={() => loadStudentDetail(b.student.id)} className="flex items-center gap-3 text-left hover:opacity-80">
                           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-100 dark:bg-brand-900/30 text-xs font-bold text-brand-700 dark:text-brand-300">
                             {b.student.fullName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                           </div>
@@ -264,22 +306,70 @@ export default function TrainerSchedulePage() {
                             <div className="text-sm font-semibold text-gray-900 dark:text-white">{b.student.fullName}</div>
                             <div className="text-xs text-gray-500 dark:text-gray-400">{b.service.name} • {formatTime(b.startsAt)} - {formatTime(b.endsAt)}</div>
                           </div>
-                        </div>
+                        </button>
                         <div className="flex items-center gap-2">
+                          {/* Prescription badge */}
+                          {b.prescription?.isActive && (
+                            <span className="rounded-full bg-purple-100 dark:bg-purple-900/30 px-2 py-0.5 text-[10px] font-bold text-purple-700 dark:text-purple-400">
+                              {b.prescription.code} — {b.prescription.usedSessions}/{b.prescription.totalSessions}
+                            </span>
+                          )}
                           {b.checkin ? (
                             <span className="rounded-full bg-green-100 dark:bg-green-900/30 px-2 py-0.5 text-[10px] font-bold text-green-700 dark:text-green-400">✓ CHECK-IN</span>
                           ) : (
                             <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold',
                               b.status === 'CONFIRMED' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' :
+                              b.status === 'COMPLETED' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
+                              b.status === 'NO_SHOW' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' :
                               b.status === 'PENDING' ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400' :
                               'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
-                            )}>{b.status === 'CONFIRMED' ? 'Confirmado' : b.status === 'PENDING' ? 'Pendente' : b.status}</span>
+                            )}>
+                              {b.status === 'CONFIRMED' ? 'Confirmado' : b.status === 'PENDING' ? 'Pendente' : b.status === 'COMPLETED' ? 'Presente' : b.status === 'NO_SHOW' ? 'Faltou' : b.status}
+                            </span>
                           )}
                           {b.source === 'WHATSAPP' && <span className="rounded-full bg-emerald-50 dark:bg-emerald-900/30 px-1.5 py-0.5 text-[9px] font-bold text-emerald-600 dark:text-emerald-400">WA</span>}
                         </div>
                       </div>
-                    </button>
-                  ))}
+
+                      {/* Row 2: Quick action buttons (only for pending/confirmed) */}
+                      {!isDone && (
+                        <div className="mt-2 flex items-center gap-2 border-t border-gray-100 dark:border-gray-700 pt-2">
+                          <button
+                            onClick={() => updateBookingStatus(b.id, 'COMPLETED')}
+                            disabled={updatingStatus === b.id}
+                            className="flex items-center gap-1 rounded-lg bg-green-100 dark:bg-green-900/30 px-3 py-1.5 text-xs font-semibold text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50 disabled:opacity-50">
+                            {updatingStatus === b.id ? <Loader2 className="h-3 w-3 animate-spin" /> : '✅'} Presente
+                          </button>
+                          <button
+                            onClick={() => updateBookingStatus(b.id, 'NO_SHOW')}
+                            disabled={updatingStatus === b.id}
+                            className="flex items-center gap-1 rounded-lg bg-red-100 dark:bg-red-900/30 px-3 py-1.5 text-xs font-semibold text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 disabled:opacity-50">
+                            {updatingStatus === b.id ? <Loader2 className="h-3 w-3 animate-spin" /> : '❌'} Faltou
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Row 3: Day notes */}
+                      <div className="mt-2 border-t border-gray-100 dark:border-gray-700 pt-2">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            placeholder="Observações do dia..."
+                            value={editingDayNotes[b.id] ?? b.dayNotes ?? ''}
+                            onChange={e => setEditingDayNotes(prev => ({ ...prev, [b.id]: e.target.value }))}
+                            className="flex-1 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 px-3 py-1.5 text-xs text-gray-700 dark:text-gray-300 focus:border-brand-500 focus:outline-none"
+                          />
+                          <button
+                            onClick={() => saveDayNotes(b.id)}
+                            disabled={savingDayNotes === b.id}
+                            className="rounded-lg bg-brand-600 px-2.5 py-1.5 text-[10px] font-bold text-white hover:bg-brand-700 disabled:opacity-50">
+                            {savingDayNotes === b.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    )
+                  })}
                 </div>
               </div>
             ))}

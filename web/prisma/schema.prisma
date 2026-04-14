@@ -225,6 +225,7 @@ model Booking {
   cancelReason String?  @map("cancel_reason")
 
   notes String?
+  dayNotes String? @map("day_notes")
 
   prescriptionId String? @map("prescription_id")
   branchId String? @map("branch_id")
@@ -254,6 +255,7 @@ enum BookingStatus {
   COMPLETED
   CANCELLED
   NO_SHOW
+  RESCHEDULED
 }
 
 enum BookingSource {
