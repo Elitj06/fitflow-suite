@@ -427,12 +427,19 @@ export default function SchedulePage() {
 
               {/* Actions */}
               <div className="flex gap-3 pt-2">
+                {selectedBooking.status !== 'CANCELLED' && (
+                  <button onClick={() => cancelBooking(selectedBooking.id)} disabled={cancelling}
+                    className="rounded-xl border border-red-300 dark:border-red-800 px-4 py-3 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 disabled:opacity-60">
+                    {cancelling ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Cancelar Aula'}
+                  </button>
+                )}
+                <div className="flex-1"></div>
                 <button onClick={() => setEditModal(false)}
-                  className="flex-1 rounded-xl border border-gray-300 dark:border-gray-600 px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800">
-                  Cancelar
+                  className="rounded-xl border border-gray-300 dark:border-gray-600 px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800">
+                  Fechar
                 </button>
                 <button onClick={saveEditBooking} disabled={savingEdit}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60">
+                  className="flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60">
                   {savingEdit ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Save className="h-4 w-4" /> Salvar</>}
                 </button>
               </div>
