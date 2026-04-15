@@ -22,6 +22,53 @@ const CreateBookingSchema = z.object({
   notes: z.string().max(500).optional(),
 })
 
+/**
+ * GET /api/v1/bookings?date=YYYY-MM-DD&phone=xxx
+ *
+ * Public endpoint for external agents (Laura/OpenClaw) to list bookings.
+ * Authentication: x-api-key header
+ */
+export async function GET(request: NextRequest) {
+  const ctx = await verifyApiKey(request)
+  if (!ctx) {
+    return NextResponse.json({ error: 'Invalid or missing API key' }, { status: 401 })
+  }
+
+  const { orgId } = ctx
+  const { searchParams } = request.nextUrl
+  const date = searchParams.get('date')
+  const phone = searchParams.get('phone')
+
+  const where: any = { orgId, status: { not: 'CANCELLED' } }
+
+  if (date) {
+    const [year, month, day] = date.split('-').map(Number)
+    const start = new Date(Date.UTC(year, month - 1, day, 0, 0, 0))
+    const end = new Date(Date.UTC(year, month - 1, day, 23, 59, 59))
+    where.startsAt = { gte: start, lte: end }
+  }
+
+  if (phone) {
+    const student = await prisma.profile.findFirst({
+      where: { orgId, phone: { contains: phone.slice(-9) }, role: 'STUDENT' },
+    })
+    if (!student) return NextResponse.json([])
+    where.studentId = student.id
+  }
+
+  const bookings = await prisma.booking.findMany({
+    where,
+    include: {
+      service: { select: { id: true, name: true } },
+      trainer: { select: { id: true, fullName: true } },
+      student: { select: { id: true, fullName: true, phone: true } },
+    },
+    orderBy: { startsAt: 'asc' },
+  })
+
+  return NextResponse.json(bookings)
+}
+
 export async function POST(request: NextRequest) {
   const ctx = await verifyApiKey(request)
   if (!ctx) {
