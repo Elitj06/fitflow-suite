@@ -50,6 +50,12 @@ const allNavItems = [
     roles: ['ADMIN'],
   },
   {
+    label: 'Professores',
+    href: '/admin/trainers',
+    icon: Users,
+    roles: ['ADMIN'],
+  },
+  {
     label: 'Alunos',
     href: '/trainer/students',
     icon: Users,

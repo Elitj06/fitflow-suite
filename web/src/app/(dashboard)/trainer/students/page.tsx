@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import {
   Users, Search, Plus, Coins, Calendar,
   X, Loader2, Mail, Phone, Filter,
+  Pencil, Trash2,
 } from 'lucide-react'
 
 interface Student {
@@ -46,6 +47,10 @@ export default function StudentsPage() {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<string>('all')
   const [showAddModal, setShowAddModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editForm, setEditForm] = useState({ fullName: '', email: '', phone: '', source: 'direct' })
+  const [editSaving, setEditSaving] = useState(false)
+  const [editError, setEditError] = useState('')
   const [selected, setSelected] = useState<Student | null>(null)
   const [saving, setSaving] = useState(false)
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([])
@@ -111,6 +116,42 @@ export default function StudentsPage() {
     } finally {
       setSaving(false)
     }
+  }
+
+  async function handleDeleteStudent(s: Student) {
+    if (!confirm(`Desativar ${s.fullName}?`)) return
+    try {
+      const res = await fetch(`/api/students/${s.id}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (!res.ok) { alert(data.error); return }
+      setSelected(null)
+      loadStudents()
+    } catch { alert('Erro de conexão') }
+  }
+
+  function openEditModal(s: Student) {
+    setEditForm({ fullName: s.fullName, email: s.email, phone: s.phone || '', source: s.source || 'direct' })
+    setEditError('')
+    setShowEditModal(true)
+  }
+
+  async function handleEditStudent() {
+    if (!selected || !editForm.fullName || !editForm.email) return
+    setEditSaving(true)
+    setEditError('')
+    try {
+      const res = await fetch(`/api/students/${selected.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editForm),
+      })
+      const data = await res.json()
+      if (!res.ok) { setEditError(data.error || 'Erro ao atualizar'); return }
+      setShowEditModal(false)
+      setSelected(null)
+      loadStudents()
+    } catch { setEditError('Erro de conexão') }
+    finally { setEditSaving(false) }
   }
 
   const totalActive = students.filter(s => s.isActive).length
@@ -337,8 +378,72 @@ export default function StudentsPage() {
 
               {/* Actions */}
               <div className="flex gap-3">
+                <button onClick={() => { openEditModal(selected); setSelected(null) }} className="flex-1 flex items-center justify-center gap-2 rounded-xl border border-gray-300 dark:border-gray-600 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800">
+                  <Pencil className="h-4 w-4" /> Editar
+                </button>
+                {userRole === 'ADMIN' && (
+                  <button onClick={() => handleDeleteStudent(selected)} className="flex-1 flex items-center justify-center gap-2 rounded-xl border border-red-300 dark:border-red-800 px-4 py-2.5 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30">
+                    <Trash2 className="h-4 w-4" /> Excluir
+                  </button>
+                )}
+              </div>
+              <div className="flex gap-3">
                 <button onClick={() => setSelected(null)} className="flex-1 rounded-xl border border-gray-300 dark:border-gray-600 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800">Fechar</button>
                 <a href={`/trainer/students/${selected.id}`} className="flex-1 text-center rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">Ver Evolução</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit modal */}
+      {showEditModal && selected && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-gray-900 p-6 shadow-2xl border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="font-display text-lg font-bold text-gray-900 dark:text-white">Editar Aluno</h3>
+              <button onClick={() => { setShowEditModal(false); setEditError('') }} className="rounded-lg p-1 hover:bg-gray-100 dark:hover:bg-gray-800"><X className="h-5 w-5 text-gray-500 dark:text-gray-400" /></button>
+            </div>
+            {editError && <div className="mb-4 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-3 text-sm text-red-700 dark:text-red-400">{editError}</div>}
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Nome completo *</label>
+                <input type="text" value={editForm.fullName} onChange={e => setEditForm(f => ({...f, fullName: e.target.value}))}
+                  className="mt-1 w-full rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2.5 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
+                  placeholder="Nome do aluno"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Email *</label>
+                <input type="email" value={editForm.email} onChange={e => setEditForm(f => ({...f, email: e.target.value}))}
+                  className="mt-1 w-full rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2.5 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
+                  placeholder="aluno@email.com"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">WhatsApp</label>
+                <input type="tel" value={editForm.phone} onChange={e => setEditForm(f => ({...f, phone: e.target.value}))}
+                  className="mt-1 w-full rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2.5 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
+                  placeholder="(21) 99999-9999"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Classificação *</label>
+                <select value={editForm.source} onChange={e => setEditForm(f => ({...f, source: e.target.value}))}
+                  className="mt-1 w-full rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2.5 text-sm text-gray-900 dark:text-white focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100">
+                  <option value="direct">Matriculado (aluno da academia)</option>
+                  <option value="wellhub">Wellhub</option>
+                  <option value="totalpass">TotalPass</option>
+                </select>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => { setShowEditModal(false); setEditError('') }} className="flex-1 rounded-xl border border-gray-300 dark:border-gray-600 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800">Cancelar</button>
+                <button onClick={handleEditStudent} disabled={editSaving || !editForm.fullName || !editForm.email}
+                  className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
+                >
+                  {editSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  {editSaving ? 'Salvando...' : 'Salvar'}
+                </button>
               </div>
             </div>
           </div>

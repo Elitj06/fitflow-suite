@@ -282,7 +282,7 @@ export default function SchedulePage() {
             {HOURS.map((hour) => {
               const slotBookings = bookingsByHour[hour] || []
               return (
-                <div key={hour} className={cn('flex min-h-[72px] transition-colors', slotBookings.length > 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50/50 dark:bg-gray-950/50')>
+                <div key={hour} className={"flex min-h-[72px] transition-colors " + (slotBookings.length > 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50/50 dark:bg-gray-950/50")}>
                   <div className="flex w-20 shrink-0 items-start justify-end border-r border-gray-100 dark:border-gray-800 pr-3 pt-3">
                     <span className="text-xs font-medium text-gray-400">{hour}</span>
                   </div>
