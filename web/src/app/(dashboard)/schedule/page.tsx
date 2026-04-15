@@ -32,12 +32,12 @@ const HOURS = Array.from({ length: 17 }, (_, i) => `${(i + 6).toString().padStar
 const DAYS_PT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab']
 const MONTHS_PT = ['Janeiro', 'Fevereiro', 'Marco', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  PENDING: { label: 'Pendente', color: 'bg-amber-100 text-amber-700 border-amber-200' },
-  CONFIRMED: { label: 'Confirmado', color: 'bg-blue-100 text-blue-700 border-blue-200' },
-  COMPLETED: { label: 'Concluido', color: 'bg-green-100 text-green-700 border-green-200' },
-  CANCELLED: { label: 'Cancelado', color: 'bg-red-100 text-red-700 border-red-200' },
-  NO_SHOW: { label: 'Faltou', color: 'bg-gray-100 text-gray-700 border-gray-200' },
-  RESCHEDULED: { label: 'Alterado', color: 'bg-purple-100 text-purple-700 border-purple-200' },
+  PENDING: { label: 'Pendente', color: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800' },
+  CONFIRMED: { label: 'Confirmado', color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800' },
+  COMPLETED: { label: 'Concluido', color: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800' },
+  CANCELLED: { label: 'Cancelado', color: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800' },
+  NO_SHOW: { label: 'Faltou', color: 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-400 border-gray-200 dark:border-gray-700' },
+  RESCHEDULED: { label: 'Alterado', color: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800' },
 }
 
 const ADMIN_STATUS_OPTIONS = [
@@ -282,7 +282,7 @@ export default function SchedulePage() {
             {HOURS.map((hour) => {
               const slotBookings = bookingsByHour[hour] || []
               return (
-                <div key={hour} className={cn('flex min-h-[72px] transition-colors', slotBookings.length > 0 ? 'bg-white' : 'bg-gray-50/50')}>
+                <div key={hour} className={cn('flex min-h-[72px] transition-colors', slotBookings.length > 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50/50 dark:bg-gray-950/50')>
                   <div className="flex w-20 shrink-0 items-start justify-end border-r border-gray-100 dark:border-gray-800 pr-3 pt-3">
                     <span className="text-xs font-medium text-gray-400">{hour}</span>
                   </div>
@@ -319,7 +319,7 @@ export default function SchedulePage() {
                       </div>
                     ) : null}
                     <button onClick={() => { setForm((f) => ({ ...f, date: dateStr, hour, prescriptionId: '' })); setShowNewBooking(true) }}
-                      className="flex items-center gap-1 rounded-lg border border-dashed border-gray-200 px-3 py-1 text-xs text-gray-400 hover:border-brand-300 hover:text-brand-500 hover:bg-brand-50/50 transition-all mt-1">
+                      className="flex items-center gap-1 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 px-3 py-1 text-xs text-gray-500 dark:text-gray-400 hover:border-brand-300 dark:hover:border-brand-600 hover:text-brand-500 dark:hover:text-brand-400 hover:bg-brand-50/50 dark:hover:bg-brand-900/20 transition-all mt-1">
                       <Plus className="h-3 w-3" /> Agendar
                     </button>
                   </div>
@@ -456,7 +456,7 @@ export default function SchedulePage() {
           <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl bg-white dark:bg-gray-900 p-6 shadow-2xl border border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between mb-6">
               <h3 className="font-display text-lg font-bold text-gray-900 dark:text-white">Novo Agendamento</h3>
-              <button onClick={() => setShowNewBooking(false)} className="rounded-lg p-1 hover:bg-gray-100"><X className="h-5 w-5 text-gray-500" /></button>
+              <button onClick={() => setShowNewBooking(false)} className="rounded-lg p-1 hover:bg-gray-100 dark:hover:bg-gray-800"><X className="h-5 w-5 text-gray-500 dark:text-gray-400" /></button>
             </div>
             <form onSubmit={createBooking} className="space-y-4">
               <div className="relative" ref={dropdownRef}>
