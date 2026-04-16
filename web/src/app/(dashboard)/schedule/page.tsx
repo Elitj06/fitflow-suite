@@ -55,6 +55,7 @@ export default function SchedulePage() {
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null)
   const [services, setServices] = useState<Service[]>([])
   const [students, setStudents] = useState<StudentProfile[]>([])
+  const [allStudents, setAllStudents] = useState<StudentProfile[]>([])
   const [trainers, setTrainers] = useState<TrainerProfile[]>([])
   const [myProfile, setMyProfile] = useState<{ id: string; fullName: string; role: string } | null>(null)
   const [form, setForm] = useState({ studentId: '', serviceId: '', trainerId: '', date: '', hour: '08:00', notes: '', prescriptionText: '', prescriptionId: '' })
@@ -104,7 +105,9 @@ export default function SchedulePage() {
     if (svcRes.ok) { loadedServices = await svcRes.json(); setServices(loadedServices) }
     if (stRes.ok) {
       const list = await stRes.json()
-      setStudents(list.map((s: any) => ({ id: s.id, fullName: s.fullName })))
+      const mapped = list.map((s: any) => ({ id: s.id, fullName: s.fullName || '' }))
+      setAllStudents(mapped)
+      setStudents(mapped)
     }
     if (profileRes.ok) {
       const prof = await profileRes.json()
@@ -251,7 +254,9 @@ export default function SchedulePage() {
   }, {})
 
   const confirmedCount = bookings.filter((b) => b.status === 'CONFIRMED' || b.status === 'COMPLETED').length
-  const filteredStudents = students.filter(s => !studentSearch || s.fullName.toLowerCase().includes(studentSearch.toLowerCase()))
+  const filteredStudents = studentSearch.trim().length >= 2
+    ? allStudents.filter(s => s.fullName.toLowerCase().includes(studentSearch.toLowerCase().trim()))
+    : []
 
   return (
     <div className="space-y-6">
