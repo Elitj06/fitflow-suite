@@ -100,7 +100,8 @@ export default function SchedulePage() {
 
   async function loadFormData() {
     const [svcRes, stRes, profileRes] = await Promise.all([fetch('/api/services'), fetch('/api/students'), fetch('/api/profile')])
-    if (svcRes.ok) setServices(await svcRes.json())
+    let loadedServices: Service[] = []
+    if (svcRes.ok) { loadedServices = await svcRes.json(); setServices(loadedServices) }
     if (stRes.ok) {
       const list = await stRes.json()
       setStudents(list.map((s: any) => ({ id: s.id, fullName: s.fullName })))
@@ -111,6 +112,14 @@ export default function SchedulePage() {
       setForm(f => ({ ...f, trainerId: prof.id }))
     }
     try { const tRes = await fetch('/api/trainers'); if (tRes.ok) setTrainers(await tRes.json()) } catch {}
+    // Auto-select service: use saved preference, or single service
+    const savedServiceId = typeof window !== 'undefined' ? localStorage.getItem('fitflow_default_service') : null
+    if (savedServiceId && loadedServices.some(s => s.id === savedServiceId)) {
+      setForm(f => ({ ...f, serviceId: savedServiceId }))
+    } else if (loadedServices.length === 1) {
+      setForm(f => ({ ...f, serviceId: loadedServices[0].id }))
+      localStorage.setItem('fitflow_default_service', loadedServices[0].id)
+    }
   }
 
   async function loadActivePrescription(studentId: string) {
@@ -212,7 +221,8 @@ export default function SchedulePage() {
       if (!res.ok) { toast.error(data.error || 'Erro ao criar agendamento'); return }
       toast.success('Agendamento criado com sucesso!')
       setShowNewBooking(false)
-      setForm({ studentId: '', serviceId: '', trainerId: myProfile?.id || '', date: '', hour: '08:00', notes: '', prescriptionText: '', prescriptionId: '' })
+      setForm({ studentId: '', serviceId: form.serviceId, trainerId: myProfile?.id || '', date: '', hour: '08:00', notes: '', prescriptionText: '', prescriptionId: '' })
+      if (form.serviceId) localStorage.setItem('fitflow_default_service', form.serviceId)
       setStudentSearch('')
       loadBookings()
     } catch { toast.error('Erro de conexao') }
