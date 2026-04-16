@@ -105,9 +105,14 @@ export default function SchedulePage() {
     if (svcRes.ok) { loadedServices = await svcRes.json(); setServices(loadedServices) }
     if (stRes.ok) {
       const list = await stRes.json()
-      const mapped = list.map((s: any) => ({ id: s.id, fullName: s.fullName || '' }))
+      const mapped = (Array.isArray(list) ? list : []).map((s: any) => ({ id: s.id, fullName: s.fullName || '' }))
+      console.log('[Schedule] Students loaded:', mapped.length)
       setAllStudents(mapped)
       setStudents(mapped)
+    } else {
+      const errText = await stRes.text().catch(() => '')
+      console.error('[Schedule] Students API failed:', stRes.status, errText)
+      toast.error('Erro ao carregar alunos: ' + stRes.status)
     }
     if (profileRes.ok) {
       const prof = await profileRes.json()
