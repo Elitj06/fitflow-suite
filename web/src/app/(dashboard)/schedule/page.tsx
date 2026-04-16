@@ -255,7 +255,11 @@ export default function SchedulePage() {
 
   const confirmedCount = bookings.filter((b) => b.status === 'CONFIRMED' || b.status === 'COMPLETED').length
   const filteredStudents = studentSearch.trim().length >= 2
-    ? allStudents.filter(s => s.fullName.toLowerCase().includes(studentSearch.toLowerCase().trim()))
+    ? allStudents.filter(s => {
+        const term = studentSearch.toLowerCase().trim()
+        const words = s.fullName.toLowerCase().split(/\s+/)
+        return words.some(w => w.startsWith(term))
+      })
     : []
 
   return (
