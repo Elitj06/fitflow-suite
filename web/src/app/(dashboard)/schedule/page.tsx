@@ -94,7 +94,8 @@ export default function SchedulePage() {
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
 
-  // Server-side student search with debounce + AbortController
+  // 100% Server-side student search — no local fallback
+  // This is the industry-standard approach (Google, Slack, etc.)
   useEffect(() => {
     const term = studentSearch.trim()
 
@@ -105,27 +106,36 @@ export default function SchedulePage() {
       return
     }
 
+    // Set loading IMMEDIATELY so the UI shows "Buscando..."
     setSearchLoading(true)
+    setSearchResults(null)
     const controller = new AbortController()
 
-    const timer = setTimeout(() => {
-      fetch('/api/students?search=' + encodeURIComponent(term), { signal: controller.signal })
-        .then(res => {
-          if (!res.ok) throw new Error('API error ' + res.status)
-          return res.json()
-        })
-        .then(data => {
-          const list = Array.isArray(data) ? data : []
-          setSearchResults(list.map((s: any) => ({ id: s.id, fullName: s.fullName || '' })))
-        })
-        .catch(err => {
-          if (err.name !== 'AbortError') {
-            console.error('[Schedule] Search failed:', err)
-            setSearchResults([])
-          }
-        })
-        .finally(() => setSearchLoading(false))
-    }, 300)
+    const timer = setTimeout(async () => {
+      try {
+        const url = '/api/students?search=' + encodeURIComponent(term)
+        console.log('[Search] Fetching:', url)
+        const res = await fetch(url, { signal: controller.signal })
+        console.log('[Search] Response status:', res.status)
+        if (!res.ok) {
+          const errBody = await res.text().catch(() => '')
+          console.error('[Search] API error:', res.status, errBody)
+          setSearchResults([])
+          return
+        }
+        const data = await res.json()
+        const list = Array.isArray(data) ? data : []
+        console.log('[Search] Results:', list.length, 'students')
+        setSearchResults(list.map((s: any) => ({ id: s.id, fullName: s.fullName || '' })))
+      } catch (err: any) {
+        if (err.name !== 'AbortError') {
+          console.error('[Search] Fetch error:', err)
+          setSearchResults([])
+        }
+      } finally {
+        setSearchLoading(false)
+      }
+    }, 350)
 
     return () => {
       clearTimeout(timer)
@@ -303,14 +313,16 @@ export default function SchedulePage() {
 
   const confirmedCount = bookings.filter((b) => b.status === 'CONFIRMED' || b.status === 'COMPLETED').length
 
-  // Compute visible students in the dropdown
+  // Students to display in the dropdown — 100% server-driven
+  // Never falls back to the truncated allStudents list
   const filteredStudents = (() => {
-    const term = studentSearch.trim().toLowerCase()
-    if (term.length < 2) return allStudents
-    // If server results are available, use them (most accurate)
+    const term = studentSearch.trim()
+    // No search text: show nothing (user must type to search)
+    if (term.length < 2) return [] as StudentProfile[]
+    // Server results (may be empty array if no match, or null if still loading)
     if (searchResults !== null) return searchResults
-    // Fallback: filter locally for immediate feedback while server loads
-    return allStudents.filter(s => s.fullName.toLowerCase().includes(term))
+    // Still loading: return empty (the loading indicator handles UX)
+    return [] as StudentProfile[]
   })()
 
   return (
@@ -539,9 +551,11 @@ export default function SchedulePage() {
                 {form.studentId && <span className="absolute right-3 top-[38px] text-green-600 text-xs font-semibold">✓</span>}
                 {showStudentDropdown && !form.studentId && (
                   <div className="absolute z-50 mt-1 w-full max-h-48 overflow-y-auto rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg">
-                    {searchLoading ? (
+                    {studentSearch.trim().length < 2 ? (
+                      <div className="px-4 py-3 text-sm text-gray-400">Digite pelo menos 2 letras para buscar...</div>
+                    ) : searchLoading ? (
                       <div className="flex items-center gap-2 px-4 py-3 text-sm text-gray-400">
-                        <Loader2 className="h-4 w-4 animate-spin" /> Buscando...
+                        <Loader2 className="h-4 w-4 animate-spin" /> Buscando alunos...
                       </div>
                     ) : filteredStudents.length > 0 ? filteredStudents.map(s => (
                       <button key={s.id} type="button"
@@ -549,11 +563,9 @@ export default function SchedulePage() {
                         className="w-full text-left px-4 py-2.5 text-sm hover:bg-brand-50 dark:hover:bg-brand-900/20 border-b border-gray-50 dark:border-gray-700 last:border-0">
                         {s.fullName}
                       </button>
-                    )) : studentSearch.trim().length >= 2
-                      ? <div className="px-4 py-3 text-sm text-gray-400">Nenhum aluno encontrado</div>
-                      : allStudents.length === 0
-                        ? <div className="px-4 py-3 text-sm text-red-400">Erro ao carregar alunos. Recarregue a página.</div>
-                        : <div className="px-4 py-3 text-sm text-gray-400">Digite pelo menos 2 letras para buscar...</div>}
+                    )) : (
+                      <div className="px-4 py-3 text-sm text-gray-400">Nenhum aluno encontrado para &ldquo;{studentSearch.trim()}&rdquo;</div>
+                    )}
                   </div>
                 )}
               </div>
