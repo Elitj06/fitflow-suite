@@ -27,11 +27,11 @@ export async function GET(request: NextRequest) {
   const where: any = { orgId: profile.orgId }
 
   if (date) {
-    const d = new Date(date)
-    where.startsAt = {
-      gte: new Date(d.getFullYear(), d.getMonth(), d.getDate()),
-      lt: new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1),
-    }
+    // Use America/Sao_Paulo timezone bounds so bookings in BRT evening show on correct date
+    const [y, m, d] = date.split('-').map(Number)
+    const dayStart = new Date(Date.UTC(y, m - 1, d, 3, 0, 0))  // 00:00 BRT = 03:00 UTC
+    const dayEnd = new Date(Date.UTC(y, m - 1, d + 1, 2, 59, 59))  // 23:59 BRT = 02:59 UTC next day
+    where.startsAt = { gte: dayStart, lte: dayEnd }
   }
   if (status) {
     where.status = status.toUpperCase()
