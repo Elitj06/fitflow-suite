@@ -40,6 +40,7 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search')
     const sourceFilter = searchParams.get('source')
     const status = searchParams.get('status')
+    const isSearching = search && search.trim().length >= 2
 
     // Build base query
     let query = supabase
@@ -48,7 +49,6 @@ export async function GET(request: NextRequest) {
       .eq('org_id', profile.org_id)
       .eq('role', 'STUDENT')
       .order('full_name')
-      .limit(5000)
 
     // Status filter
     if (status === 'active') {
@@ -66,10 +66,14 @@ export async function GET(request: NextRequest) {
       query = query.eq('source', 'direct')
     }
 
-    // Database-side search filter
-    if (search && search.trim().length >= 2) {
-      const term = search.trim();
-      query = query.or(`full_name.ilike.%${term}%,email.ilike.%${term}%,phone.ilike.%${term}%`);
+    // Database-side search filter — applied BEFORE the query executes
+    if (isSearching) {
+      const term = search.trim()
+      query = query.or(`full_name.ilike.%${term}%,email.ilike.%${term}%,phone.ilike.%${term}%`)
+      // When searching, limit to 100 results (search is precise, no need for more)
+      query = query.limit(100)
+    } else {
+      query = query.limit(5000)
     }
 
     const { data: students, error: queryError } = await query
@@ -79,28 +83,28 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Query failed' }, { status: 500 })
     }
 
-    // TRAINER: only show students who have bookings with this trainer
+    // TRAINER role: restrict to students with existing bookings
+    // BUT: when actively searching, show ALL org students so trainer
+    //       can find and book students they haven't worked with yet
     let filtered = students || []
-    if (profile.role === 'TRAINER') {
+    if (profile.role === 'TRAINER' && !isSearching) {
       const trainerId = profile.id
       const { data: trainerBookings } = await supabase
         .from('bookings')
         .select('student_id')
         .eq('trainer_id', trainerId)
+        .limit(10000)
       const trainerStudentIds = new Set((trainerBookings || []).map((b: any) => b.student_id))
       filtered = filtered.filter((s: any) => trainerStudentIds.has(s.id))
     }
 
-    // Removed Client-side search filter to avoid pagination truncation issues
-
-    // Only fetch counts when explicitly requested (heavy queries with thousands of IDs)
+    // Only fetch counts when explicitly requested (heavy queries)
     const includeCounts = searchParams.get('include_counts') === 'true'
     let checkinCounts: Record<string, number> = {}
     let bookingCounts: Record<string, number> = {}
 
     if (includeCounts) {
       const studentIds = filtered.map(s => s.id)
-      // Batch in chunks of 200 to avoid URL length limits
       const chunkSize = 200
       for (let i = 0; i < studentIds.length; i += chunkSize) {
         const chunk = studentIds.slice(i, i + chunkSize)

@@ -66,8 +66,9 @@ export default function SchedulePage() {
   const [activePrescription, setActivePrescription] = useState<{ id: string; code: string; name: string | null; totalSessions: number; usedSessions: number } | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
-  const [debouncedSearch, setDebouncedSearch] = useState('')
-  const [dynamicStudents, setDynamicStudents] = useState<StudentProfile[] | null>(null)
+  // Server-side search state
+  const [searchResults, setSearchResults] = useState<StudentProfile[] | null>(null)
+  const [searchLoading, setSearchLoading] = useState(false)
 
   // Admin edit state
   const [editModal, setEditModal] = useState(false)
@@ -93,24 +94,44 @@ export default function SchedulePage() {
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
 
+  // Server-side student search with debounce + AbortController
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(studentSearch), 300)
-    return () => clearTimeout(timer)
-  }, [studentSearch])
+    const term = studentSearch.trim()
 
-  useEffect(() => {
-    if (debouncedSearch.trim().length >= 2) {
-      fetch('/api/students?search=' + encodeURIComponent(debouncedSearch.trim()))
-        .then(res => res.json())
-        .then(list => {
-          const mapped = (Array.isArray(list) ? list : []).map((s: any) => ({ id: s.id, fullName: s.fullName || '' }))
-          setDynamicStudents(mapped)
-        })
-        .catch(() => setDynamicStudents([]))
-    } else {
-      setDynamicStudents(null)
+    // Reset when search is cleared
+    if (term.length < 2) {
+      setSearchResults(null)
+      setSearchLoading(false)
+      return
     }
-  }, [debouncedSearch])
+
+    setSearchLoading(true)
+    const controller = new AbortController()
+
+    const timer = setTimeout(() => {
+      fetch('/api/students?search=' + encodeURIComponent(term), { signal: controller.signal })
+        .then(res => {
+          if (!res.ok) throw new Error('API error ' + res.status)
+          return res.json()
+        })
+        .then(data => {
+          const list = Array.isArray(data) ? data : []
+          setSearchResults(list.map((s: any) => ({ id: s.id, fullName: s.fullName || '' })))
+        })
+        .catch(err => {
+          if (err.name !== 'AbortError') {
+            console.error('[Schedule] Search failed:', err)
+            setSearchResults([])
+          }
+        })
+        .finally(() => setSearchLoading(false))
+    }, 300)
+
+    return () => {
+      clearTimeout(timer)
+      controller.abort()
+    }
+  }, [studentSearch])
 
   async function loadBookings() {
     setLoading(true)
@@ -281,7 +302,16 @@ export default function SchedulePage() {
   }, {})
 
   const confirmedCount = bookings.filter((b) => b.status === 'CONFIRMED' || b.status === 'COMPLETED').length
-  const filteredStudents = dynamicStudents !== null ? dynamicStudents : allStudents
+
+  // Compute visible students in the dropdown
+  const filteredStudents = (() => {
+    const term = studentSearch.trim().toLowerCase()
+    if (term.length < 2) return allStudents
+    // If server results are available, use them (most accurate)
+    if (searchResults !== null) return searchResults
+    // Fallback: filter locally for immediate feedback while server loads
+    return allStudents.filter(s => s.fullName.toLowerCase().includes(term))
+  })()
 
   return (
     <div className="space-y-6">
@@ -509,15 +539,21 @@ export default function SchedulePage() {
                 {form.studentId && <span className="absolute right-3 top-[38px] text-green-600 text-xs font-semibold">✓</span>}
                 {showStudentDropdown && !form.studentId && (
                   <div className="absolute z-50 mt-1 w-full max-h-48 overflow-y-auto rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg">
-                    {filteredStudents.length > 0 ? filteredStudents.map(s => (
+                    {searchLoading ? (
+                      <div className="flex items-center gap-2 px-4 py-3 text-sm text-gray-400">
+                        <Loader2 className="h-4 w-4 animate-spin" /> Buscando...
+                      </div>
+                    ) : filteredStudents.length > 0 ? filteredStudents.map(s => (
                       <button key={s.id} type="button"
                         onClick={() => { setForm(p => ({ ...p, studentId: s.id })); setStudentSearch(s.fullName); setShowStudentDropdown(false); loadActivePrescription(s.id) }}
                         className="w-full text-left px-4 py-2.5 text-sm hover:bg-brand-50 dark:hover:bg-brand-900/20 border-b border-gray-50 dark:border-gray-700 last:border-0">
                         {s.fullName}
                       </button>
-                    )) : allStudents.length === 0
-                      ? <div className="px-4 py-3 text-sm text-red-400">Erro ao carregar alunos. Recarregue a página.</div>
-                      : <div className="px-4 py-3 text-sm text-gray-400">Nenhum aluno encontrado</div>}
+                    )) : studentSearch.trim().length >= 2
+                      ? <div className="px-4 py-3 text-sm text-gray-400">Nenhum aluno encontrado</div>
+                      : allStudents.length === 0
+                        ? <div className="px-4 py-3 text-sm text-red-400">Erro ao carregar alunos. Recarregue a página.</div>
+                        : <div className="px-4 py-3 text-sm text-gray-400">Digite pelo menos 2 letras para buscar...</div>}
                   </div>
                 )}
               </div>
