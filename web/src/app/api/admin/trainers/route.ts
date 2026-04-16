@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
 
     const trainer = await prisma.profile.create({
       data: {
-        userId: `manual_${Date.now()}`,
+        userId: crypto.randomUUID(),
         orgId: profile.org_id,
         role: 'TRAINER',
         fullName: parsed.data.fullName,
