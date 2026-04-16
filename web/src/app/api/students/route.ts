@@ -66,6 +66,12 @@ export async function GET(request: NextRequest) {
       query = query.eq('source', 'direct')
     }
 
+    // Database-side search filter
+    if (search && search.trim().length >= 2) {
+      const term = search.trim();
+      query = query.or(`full_name.ilike.%${term}%,email.ilike.%${term}%,phone.ilike.%${term}%`);
+    }
+
     const { data: students, error: queryError } = await query
 
     if (queryError) {
@@ -85,15 +91,7 @@ export async function GET(request: NextRequest) {
       filtered = filtered.filter((s: any) => trainerStudentIds.has(s.id))
     }
 
-    // Client-side search filter (more reliable than Supabase .or() combined with .eq())
-    if (search && search.trim().length >= 2) {
-      const term = search.trim().toLowerCase()
-      filtered = filtered.filter((s: any) =>
-        s.full_name?.toLowerCase().includes(term) ||
-        s.email?.toLowerCase().includes(term) ||
-        s.phone?.includes(term)
-      )
-    }
+    // Removed Client-side search filter to avoid pagination truncation issues
 
     // Only fetch counts when explicitly requested (heavy queries with thousands of IDs)
     const includeCounts = searchParams.get('include_counts') === 'true'

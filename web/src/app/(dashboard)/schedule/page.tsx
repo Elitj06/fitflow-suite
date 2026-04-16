@@ -66,6 +66,9 @@ export default function SchedulePage() {
   const [activePrescription, setActivePrescription] = useState<{ id: string; code: string; name: string | null; totalSessions: number; usedSessions: number } | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [dynamicStudents, setDynamicStudents] = useState<StudentProfile[] | null>(null)
+
   // Admin edit state
   const [editModal, setEditModal] = useState(false)
   const [editForm, setEditForm] = useState({
@@ -89,6 +92,25 @@ export default function SchedulePage() {
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(studentSearch), 300)
+    return () => clearTimeout(timer)
+  }, [studentSearch])
+
+  useEffect(() => {
+    if (debouncedSearch.trim().length >= 2) {
+      fetch('/api/students?search=' + encodeURIComponent(debouncedSearch.trim()))
+        .then(res => res.json())
+        .then(list => {
+          const mapped = (Array.isArray(list) ? list : []).map((s: any) => ({ id: s.id, fullName: s.fullName || '' }))
+          setDynamicStudents(mapped)
+        })
+        .catch(() => setDynamicStudents([]))
+    } else {
+      setDynamicStudents(null)
+    }
+  }, [debouncedSearch])
 
   async function loadBookings() {
     setLoading(true)
@@ -259,9 +281,7 @@ export default function SchedulePage() {
   }, {})
 
   const confirmedCount = bookings.filter((b) => b.status === 'CONFIRMED' || b.status === 'COMPLETED').length
-  const filteredStudents = studentSearch.trim().length >= 2
-    ? allStudents.filter(s => s.fullName.toLowerCase().includes(studentSearch.toLowerCase().trim()))
-    : allStudents
+  const filteredStudents = dynamicStudents !== null ? dynamicStudents : allStudents
 
   return (
     <div className="space-y-6">
