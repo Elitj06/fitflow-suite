@@ -260,12 +260,8 @@ export default function SchedulePage() {
 
   const confirmedCount = bookings.filter((b) => b.status === 'CONFIRMED' || b.status === 'COMPLETED').length
   const filteredStudents = studentSearch.trim().length >= 2
-    ? allStudents.filter(s => {
-        const term = studentSearch.toLowerCase().trim()
-        const words = s.fullName.toLowerCase().split(/\s+/)
-        return words.some(w => w.startsWith(term))
-      })
-    : []
+    ? allStudents.filter(s => s.fullName.toLowerCase().includes(studentSearch.toLowerCase().trim()))
+    : allStudents
 
   return (
     <div className="space-y-6">
@@ -499,7 +495,9 @@ export default function SchedulePage() {
                         className="w-full text-left px-4 py-2.5 text-sm hover:bg-brand-50 dark:hover:bg-brand-900/20 border-b border-gray-50 dark:border-gray-700 last:border-0">
                         {s.fullName}
                       </button>
-                    )) : <div className="px-4 py-3 text-sm text-gray-400">Nenhum aluno encontrado</div>}
+                    )) : allStudents.length === 0
+                      ? <div className="px-4 py-3 text-sm text-red-400">Erro ao carregar alunos. Recarregue a página.</div>
+                      : <div className="px-4 py-3 text-sm text-gray-400">Nenhum aluno encontrado</div>}
                   </div>
                 )}
               </div>
