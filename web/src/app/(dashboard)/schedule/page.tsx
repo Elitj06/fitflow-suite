@@ -292,7 +292,7 @@ export default function SchedulePage() {
                         {slotBookings.map((b) => (
                           <button key={b.id} onClick={() => openEditModal(b)}
                             className="w-full text-left rounded-lg border-l-[3px] bg-white dark:bg-gray-800/50 px-3 py-2 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all"
-                            style={{ borderLeftColor: b.service.color }}>
+                            style={{ borderLeftColor: b.service?.color || '#6366f1' }}>
                             <div className="flex items-center justify-between">
                               <span className="text-xs font-bold text-gray-900 dark:text-white">
                                 {new Date(b.startsAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} –{' '}
@@ -307,8 +307,8 @@ export default function SchedulePage() {
                                 {b.source === 'WHATSAPP' && <span className="rounded-full bg-green-100 px-1.5 py-0.5 text-[9px] font-bold text-green-700">WA</span>}
                               </div>
                             </div>
-                            <div className="mt-1 text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{b.student.fullName}</div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{b.service.name} • {b.trainer.fullName}</div>
+                            <div className="mt-1 text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{b.student?.fullName || 'Aluno'}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{b.service?.name || 'Servico'} • {b.trainer?.fullName || 'Professor'}</div>
                             <div className="mt-1">
                               <span className={cn('rounded-full px-1.5 py-0.5 text-[9px] font-semibold border', STATUS_CONFIG[b.status]?.color)}>
                                 {STATUS_CONFIG[b.status]?.label || b.status}
