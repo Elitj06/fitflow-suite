@@ -81,6 +81,7 @@ export default function StudentsPage() {
       if (filter === 'wellhub') params.set('source', 'wellhub')
       if (filter === 'totalpass') params.set('source', 'totalpass')
       if (filter === 'direct') params.set('source', 'direct')
+      params.set('include_counts', 'true')
       const res = await fetch('/api/students?' + params.toString())
       if (res.ok) setStudents(await res.json())
     } catch (e) {

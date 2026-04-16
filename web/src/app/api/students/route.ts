@@ -95,32 +95,23 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Get checkin counts in a separate query for performance
-    const studentIds = (students || []).map(s => s.id)
+    // Only fetch counts when explicitly requested (heavy queries with thousands of IDs)
+    const includeCounts = searchParams.get('include_counts') === 'true'
     let checkinCounts: Record<string, number> = {}
     let bookingCounts: Record<string, number> = {}
 
-    if (studentIds.length > 0) {
-      const { data: checkins } = await supabase
-        .from('checkins')
-        .select('student_id')
-        .in('student_id', studentIds)
-
-      if (checkins) {
-        checkins.forEach((c: any) => {
-          checkinCounts[c.student_id] = (checkinCounts[c.student_id] || 0) + 1
-        })
-      }
-
-      const { data: bookings } = await supabase
-        .from('bookings')
-        .select('student_id')
-        .in('student_id', studentIds)
-
-      if (bookings) {
-        bookings.forEach((b: any) => {
-          bookingCounts[b.student_id] = (bookingCounts[b.student_id] || 0) + 1
-        })
+    if (includeCounts) {
+      const studentIds = filtered.map(s => s.id)
+      // Batch in chunks of 200 to avoid URL length limits
+      const chunkSize = 200
+      for (let i = 0; i < studentIds.length; i += chunkSize) {
+        const chunk = studentIds.slice(i, i + chunkSize)
+        const [checkinsRes, bookingsRes] = await Promise.all([
+          supabase.from('checkins').select('student_id').in('student_id', chunk),
+          supabase.from('bookings').select('student_id').in('student_id', chunk),
+        ])
+        ;(checkinsRes.data || []).forEach((c: any) => { checkinCounts[c.student_id] = (checkinCounts[c.student_id] || 0) + 1 })
+        ;(bookingsRes.data || []).forEach((b: any) => { bookingCounts[b.student_id] = (bookingCounts[b.student_id] || 0) + 1 })
       }
     }
 
