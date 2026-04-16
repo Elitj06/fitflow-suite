@@ -241,7 +241,7 @@ export default function SchedulePage() {
   }, {})
 
   const confirmedCount = bookings.filter((b) => b.status === 'CONFIRMED' || b.status === 'COMPLETED').length
-  const filteredStudents = students.filter(s => !studentSearch || s.fullName.toLowerCase().includes(studentSearch.toLowerCase())).slice(0, 30)
+  const filteredStudents = students.filter(s => !studentSearch || s.fullName.toLowerCase().includes(studentSearch.toLowerCase()))
 
   return (
     <div className="space-y-6">

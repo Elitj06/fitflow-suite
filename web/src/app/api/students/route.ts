@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
       .eq('org_id', profile.org_id)
       .eq('role', 'STUDENT')
       .order('full_name')
-      .limit(1000)
+      .limit(5000)
 
     // Status filter
     if (status === 'active') {
