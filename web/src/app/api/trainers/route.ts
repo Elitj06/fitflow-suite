@@ -24,7 +24,7 @@ export async function GET() {
       .from('profiles')
       .select('id, full_name, role')
       .eq('org_id', profile.org_id)
-      .in('role', ['ADMIN', 'TRAINER'])
+      .in('role', ['TRAINER'])
       .eq('is_active', true)
       .order('full_name')
 
