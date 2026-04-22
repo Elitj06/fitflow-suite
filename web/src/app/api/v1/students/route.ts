@@ -1,7 +1,15 @@
 /**
- * GET /api/v1/students?search=&phone=
+ * GET /api/v1/students
  *
- * Search students by name or phone. Used by Laura to identify students.
+ * List students. If no params, returns all active students.
+ * With search/phone, returns matching students (limit 10).
+ *
+ * Query params:
+ *   search=name (optional)
+ *   phone=number (optional)
+ *   limit=50 (default, only when listing all)
+ *   offset=0 (default, only when listing all)
+ *
  * Authentication: x-api-key header
  */
 
@@ -20,30 +28,53 @@ export async function GET(request: NextRequest) {
   const search = searchParams.get('search')
   const phone = searchParams.get('phone')
 
-  if (!search && !phone) {
-    return NextResponse.json({ error: 'Provide search=name or phone=number' }, { status: 400 })
-  }
-
   try {
-    const where: any = { orgId, role: 'STUDENT', isActive: true }
+    // Search mode — keep existing behavior
+    if (search || phone) {
+      const where: any = { orgId, role: 'STUDENT', isActive: true }
 
-    if (phone) {
-      where.phone = { contains: phone.replace(/\D/g, '').slice(-9) }
-    } else if (search) {
-      where.fullName = { contains: search, mode: 'insensitive' }
+      if (phone) {
+        where.phone = { contains: phone.replace(/\D/g, '').slice(-9) }
+      } else if (search) {
+        where.fullName = { contains: search, mode: 'insensitive' }
+      }
+
+      const students = await prisma.profile.findMany({
+        where,
+        select: {
+          id: true,
+          fullName: true,
+          phone: true,
+          email: true,
+          source: true,
+          isActive: true,
+          createdAt: true,
+        },
+        orderBy: { fullName: 'asc' },
+        take: 10,
+      })
+
+      return NextResponse.json(students)
     }
 
+    // List all mode
+    const limit = Math.min(Math.max(Number(searchParams.get('limit')) || 50, 1), 200)
+    const offset = Math.max(Number(searchParams.get('offset')) || 0, 0)
+
     const students = await prisma.profile.findMany({
-      where,
+      where: { orgId, role: 'STUDENT', isActive: true },
       select: {
         id: true,
         fullName: true,
         phone: true,
         email: true,
-        coinsBalance: true,
+        source: true,
+        isActive: true,
+        createdAt: true,
       },
       orderBy: { fullName: 'asc' },
-      take: 10,
+      take: limit,
+      skip: offset,
     })
 
     return NextResponse.json(students)
