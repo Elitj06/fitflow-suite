@@ -13,14 +13,18 @@ import { verifyApiKey } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
 
 const CreateBookingSchema = z.object({
-  phone: z.string().min(8).max(30),
+  phone: z.string().min(8).max(30).optional(),
+  studentId: z.string().min(1).optional(),
   name: z.string().min(1).max(200),
   serviceId: z.string().min(1),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
   time: z.string().regex(/^\d{2}:\d{2}$/, 'Time must be HH:MM'),
   trainerId: z.string().optional(),
   notes: z.string().max(500).optional(),
-})
+}).refine(data => data.phone || data.studentId, {
+  message: 'Either phone or studentId is required',
+  path: ['phone'],
+});
 
 /**
  * GET /api/v1/bookings?date=YYYY-MM-DD&phone=xxx
@@ -89,7 +93,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 422 })
   }
 
-  const { phone, name, serviceId, date, time, trainerId, notes } = parsed.data
+  const { phone, name, serviceId, date, time, trainerId, notes, studentId } = parsed.data
 
   try {
     // Validate service belongs to org
@@ -167,14 +171,28 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Find or create student profile by phone
-    let student = await prisma.profile.findFirst({
-      where: { orgId, phone: { contains: phone.slice(-9) }, role: 'STUDENT' },
-    })
+    // Find or create student profile by phone or studentId
+    let student = null
+
+    if (studentId) {
+      // Direct lookup by student profile ID
+      student = await prisma.profile.findFirst({
+        where: { id: studentId, orgId, role: 'STUDENT' },
+      })
+    } else if (phone) {
+      student = await prisma.profile.findFirst({
+        where: { orgId, phone: { contains: phone.slice(-9) }, role: 'STUDENT' },
+      })
+    }
 
     if (!student) {
+      if (!phone) {
+        return NextResponse.json(
+          { error: 'Student not found and no phone provided to create one' },
+          { status: 404 }
+        )
+      }
       // Create a minimal student profile (no Supabase auth — agent-created)
-      // We use a placeholder userId that is unique but not tied to Supabase auth
       const placeholderUserId = `agent-${orgId}-${phone.replace(/\D/g, '')}`
       student = await prisma.profile.create({
         data: {
