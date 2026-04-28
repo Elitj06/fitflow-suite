@@ -36,7 +36,22 @@ export async function GET(request: NextRequest) {
       if (phone) {
         where.phone = { contains: phone.replace(/\D/g, '').slice(-9) }
       } else if (search) {
-        where.fullName = { contains: search, mode: 'insensitive' }
+        // Normalize search to remove accents for matching
+        const normalizedSearch = search
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+        
+        where.AND = [
+          { orgId, role: 'STUDENT', isActive: true },
+        ]
+        // Search with original OR normalized (no accents)
+        delete where.orgId
+        delete where.role  
+        delete where.isActive
+        where.OR = [
+          { fullName: { contains: search, mode: 'insensitive' } },
+          { fullName: { contains: normalizedSearch, mode: 'insensitive' } },
+        ]
       }
 
       const students = await prisma.profile.findMany({
