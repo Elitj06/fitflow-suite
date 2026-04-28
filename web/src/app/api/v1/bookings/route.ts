@@ -154,8 +154,11 @@ export async function POST(request: NextRequest) {
     const startsAt = new Date(Date.UTC(year, month - 1, day, hour - offsetHours, minute))
     const endsAt = new Date(startsAt.getTime() + service.durationMinutes * 60000)
 
-    // Check for trainer conflicts
-    const conflict = await prisma.booking.findFirst({
+    // Capacity limits: 5 students per trainer per slot, 22 total per slot
+    const MAX_STUDENTS_PER_TRAINER = 5
+    const MAX_STUDENTS_PER_SLOT = 22
+
+    const trainerBookings = await prisma.booking.count({
       where: {
         orgId,
         trainerId: resolvedTrainerId,
@@ -164,9 +167,24 @@ export async function POST(request: NextRequest) {
         endsAt: { gt: startsAt },
       },
     })
-    if (conflict) {
+    if (trainerBookings >= MAX_STUDENTS_PER_TRAINER) {
       return NextResponse.json(
-        { error: 'Time slot unavailable — trainer already booked' },
+        { error: `Professor já tem ${MAX_STUDENTS_PER_TRAINER} alunos nesse horário. Capacidade máxima por professor atingida.` },
+        { status: 409 }
+      )
+    }
+
+    const totalBookings = await prisma.booking.count({
+      where: {
+        orgId,
+        status: { in: ['PENDING', 'CONFIRMED'] },
+        startsAt: { lt: endsAt },
+        endsAt: { gt: startsAt },
+      },
+    })
+    if (totalBookings >= MAX_STUDENTS_PER_SLOT) {
+      return NextResponse.json(
+        { error: `Horário lotado — ${MAX_STUDENTS_PER_SLOT} vagas já preenchidas.` },
         { status: 409 }
       )
     }
