@@ -12,22 +12,26 @@ import { z } from 'zod'
 import { verifyApiKey } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
 
-// Brazilian national holidays 2026 (studio closed)
-const HOLIDAYS_2026: Record<string, string> = {
-  '2026-01-01': 'Confraternização Universal',
-  '2026-04-03': 'Sexta-feira Santa',
-  '2026-04-21': 'Tiradentes',
-  '2026-05-01': 'Dia do Trabalho',
-  '2026-06-04': 'Corpus Christi',
-  '2026-09-07': 'Independência do Brasil',
-  '2026-10-12': 'Nossa Senhora Aparecida',
-  '2026-11-02': 'Finados',
-  '2026-11-15': 'Proclamação da República',
-  '2026-12-25': 'Natal',
+// Studio schedule exceptions (holidays/special days)
+// Updated by admin — each entry defines if studio is CLOSED or has SPECIAL hours
+// If a date is not listed, normal hours apply (Seg-Sex 6h-21h, Sáb 8h-12h, Dom fechado)
+const SCHEDULE_EXCEPTIONS: Record<string, { status: 'CLOSED' | 'SPECIAL', label: string, hours?: string }> = {
+  // Exemplo (removido até Rafael confirmar):
+  // '2026-01-01': { status: 'CLOSED', label: 'Confraternização Universal' },
+  // '2026-12-25': { status: 'CLOSED', label: 'Natal' },
+  // '2026-11-02': { status: 'SPECIAL', label: 'Finados', hours: '08:00-14:00' },
 }
 
-function isHoliday(dateStr: string): string | null {
-  return HOLIDAYS_2026[dateStr] || null
+function getScheduleException(dateStr: string): { blocked: boolean; message: string } | null {
+  const exc = SCHEDULE_EXCEPTIONS[dateStr]
+  if (!exc) return null
+  if (exc.status === 'CLOSED') {
+    return { blocked: true, message: `O estúdio não funciona em ${exc.label}. Escolha outro dia.` }
+  }
+  if (exc.status === 'SPECIAL') {
+    return { blocked: false, message: `Atenção: ${exc.label} — funcionamento especial: ${exc.hours}` }
+  }
+  return null
 }
 
 const CreateBookingSchema = z.object({
@@ -181,11 +185,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Block holiday bookings
-    const holidayName = isHoliday(date)
-    if (holidayName) {
+    // Check schedule exceptions (holidays / special hours)
+    const exception = getScheduleException(date)
+    if (exception?.blocked) {
       return NextResponse.json(
-        { error: `O estúdio não funciona em feriados. ${date} é ${holidayName}. Escolha outro dia.` },
+        { error: exception.message },
         { status: 422 }
       )
     }
