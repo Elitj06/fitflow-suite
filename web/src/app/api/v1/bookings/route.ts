@@ -299,6 +299,23 @@ export async function POST(request: NextRequest) {
       select: { fullName: true },
     })
 
+    // Check if student already has a booking on this date (1 per day)
+    const existingBooking = await prisma.booking.findFirst({
+      where: {
+        orgId,
+        studentId: student.id,
+        status: { in: ['PENDING', 'CONFIRMED'] },
+        startsAt: { gte: new Date(startsAt.getFullYear(), startsAt.getMonth(), startsAt.getDate()) },
+        endsAt: { lt: new Date(startsAt.getFullYear(), startsAt.getMonth(), startsAt.getDate() + 1) },
+      },
+    })
+    if (existingBooking) {
+      return NextResponse.json(
+        { error: `Aluno já possui agendamento nesse dia (${date}). Um agendamento por dia. Cancele o anterior antes de criar um novo.` },
+        { status: 409 }
+      )
+    }
+
     // Create the booking
     const booking = await prisma.booking.create({
       data: {
