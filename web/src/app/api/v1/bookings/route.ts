@@ -12,6 +12,24 @@ import { z } from 'zod'
 import { verifyApiKey } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
 
+// Brazilian national holidays 2026 (studio closed)
+const HOLIDAYS_2026: Record<string, string> = {
+  '2026-01-01': 'Confraternização Universal',
+  '2026-04-03': 'Sexta-feira Santa',
+  '2026-04-21': 'Tiradentes',
+  '2026-05-01': 'Dia do Trabalho',
+  '2026-06-04': 'Corpus Christi',
+  '2026-09-07': 'Independência do Brasil',
+  '2026-10-12': 'Nossa Senhora Aparecida',
+  '2026-11-02': 'Finados',
+  '2026-11-15': 'Proclamação da República',
+  '2026-12-25': 'Natal',
+}
+
+function isHoliday(dateStr: string): string | null {
+  return HOLIDAYS_2026[dateStr] || null
+}
+
 const CreateBookingSchema = z.object({
   phone: z.string().min(8).max(30).optional(),
   studentId: z.string().min(1).optional(),
@@ -153,6 +171,24 @@ export async function POST(request: NextRequest) {
     // O offset real é a diferença; para converter SP->UTC, subtraímos o offset
     const startsAt = new Date(Date.UTC(year, month - 1, day, hour - offsetHours, minute))
     const endsAt = new Date(startsAt.getTime() + service.durationMinutes * 60000)
+
+    // Block Sunday bookings — studio is closed
+    const dayOfWeek = startsAt.getUTCDay() // 0=Sunday
+    if (dayOfWeek === 0) {
+      return NextResponse.json(
+        { error: 'O estúdio não funciona aos domingos. Escolha outro dia.' },
+        { status: 422 }
+      )
+    }
+
+    // Block holiday bookings
+    const holidayName = isHoliday(date)
+    if (holidayName) {
+      return NextResponse.json(
+        { error: `O estúdio não funciona em feriados. ${date} é ${holidayName}. Escolha outro dia.` },
+        { status: 422 }
+      )
+    }
 
     // Capacity limits: 5 students per trainer per slot, 22 total per slot
     const MAX_STUDENTS_PER_TRAINER = 5
