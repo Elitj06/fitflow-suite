@@ -198,22 +198,7 @@ export async function POST(request: NextRequest) {
     const MAX_STUDENTS_PER_TRAINER = 5
     const MAX_STUDENTS_PER_SLOT = 22
 
-    const trainerBookings = await prisma.booking.count({
-      where: {
-        orgId,
-        trainerId: resolvedTrainerId,
-        status: { in: ['PENDING', 'CONFIRMED'] },
-        startsAt: { lt: endsAt },
-        endsAt: { gt: startsAt },
-      },
-    })
-    if (trainerBookings >= MAX_STUDENTS_PER_TRAINER) {
-      return NextResponse.json(
-        { error: `Professor já tem ${MAX_STUDENTS_PER_TRAINER} alunos nesse horário. Capacidade máxima por professor atingida.` },
-        { status: 409 }
-      )
-    }
-
+    // Check total capacity first (hard limit)
     const totalBookings = await prisma.booking.count({
       where: {
         orgId,
@@ -227,6 +212,50 @@ export async function POST(request: NextRequest) {
         { error: `Horário lotado — ${MAX_STUDENTS_PER_SLOT} vagas já preenchidas.` },
         { status: 409 }
       )
+    }
+
+    // Check trainer capacity — if full, auto-assign to another available trainer
+    let reassignedTrainer = false
+    const trainerBookings = await prisma.booking.count({
+      where: {
+        orgId,
+        trainerId: resolvedTrainerId,
+        status: { in: ['PENDING', 'CONFIRMED'] },
+        startsAt: { lt: endsAt },
+        endsAt: { gt: startsAt },
+      },
+    })
+    if (trainerBookings >= MAX_STUDENTS_PER_TRAINER) {
+      // Try to find another trainer with capacity
+      const allTrainers = await prisma.profile.findMany({
+        where: { orgId, role: { in: ['TRAINER', 'ADMIN'] }, isActive: true },
+        select: { id: true, fullName: true },
+      })
+      
+      for (const trainer of allTrainers) {
+        if (trainer.id === resolvedTrainerId) continue
+        const trainerCount = await prisma.booking.count({
+          where: {
+            orgId,
+            trainerId: trainer.id,
+            status: { in: ['PENDING', 'CONFIRMED'] },
+            startsAt: { lt: endsAt },
+            endsAt: { gt: startsAt },
+          },
+        })
+        if (trainerCount < MAX_STUDENTS_PER_TRAINER) {
+          resolvedTrainerId = trainer.id
+          reassignedTrainer = true
+          break
+        }
+      }
+      
+      if (!reassignedTrainer) {
+        return NextResponse.json(
+          { error: `Todos os professores estão com ${MAX_STUDENTS_PER_TRAINER} alunos nesse horário. Nenhum disponível.` },
+          { status: 409 }
+        )
+      }
     }
 
     // Find or create student profile by phone or studentId
@@ -297,12 +326,15 @@ export async function POST(request: NextRequest) {
       minute: '2-digit',
     })
     const trainerName = trainer?.fullName ?? 'Instrutor'
-    const confirmationMessage = `Agendado! ${service.name}, ${dateFormatted} às ${timeFormatted} com ${trainerName}.`
+    const confirmationMessage = reassignedTrainer
+      ? `Agendado! ${service.name}, ${dateFormatted} às ${timeFormatted} com ${trainerName}. (Professor realocado automaticamente — o solicitado estava com ${MAX_STUDENTS_PER_TRAINER} alunos nesse horário.)`
+      : `Agendado! ${service.name}, ${dateFormatted} às ${timeFormatted} com ${trainerName}.`
 
     return NextResponse.json(
       {
         success: true,
         bookingId: booking.id,
+        trainerReassigned: reassignedTrainer || undefined,
         confirmationMessage,
       },
       { status: 201 }
