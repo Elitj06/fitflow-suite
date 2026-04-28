@@ -41,17 +41,30 @@ export async function GET(request: NextRequest) {
           .normalize('NFD')
           .replace(/[\u0300-\u036f]/g, '')
         
-        where.AND = [
-          { orgId, role: 'STUDENT', isActive: true },
-        ]
-        // Search with original OR normalized (no accents)
-        delete where.orgId
-        delete where.role  
-        delete where.isActive
-        where.OR = [
-          { fullName: { contains: search, mode: 'insensitive' } },
-          { fullName: { contains: normalizedSearch, mode: 'insensitive' } },
-        ]
+        // Build where with both original and accent-normalized search
+        const baseConditions = { orgId, role: 'STUDENT' as const, isActive: true }
+        
+        const students = await prisma.profile.findMany({
+          where: {
+            ...baseConditions,
+            OR: [
+              { fullName: { contains: search, mode: 'insensitive' } },
+              { fullName: { contains: normalizedSearch, mode: 'insensitive' } },
+            ],
+          },
+          select: {
+            id: true,
+            fullName: true,
+            phone: true,
+            email: true,
+            source: true,
+            isActive: true,
+            createdAt: true,
+          },
+          orderBy: { fullName: 'asc' },
+          take: 10,
+        })
+        return NextResponse.json(students)
       }
 
       const students = await prisma.profile.findMany({
