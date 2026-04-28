@@ -36,22 +36,25 @@ export async function GET(request: NextRequest) {
       if (phone) {
         where.phone = { contains: phone.replace(/\D/g, '').slice(-9) }
       } else if (search) {
-        // Search with accent-insensitive matching using raw SQL
-        const normalizedSearch = search
-          .normalize('NFD')
-          .replace(/[\u0300-\u036f]/g, '')
+        // Build accent-insensitive ILIKE pattern for Portuguese names
+        const accentMap: Record<string, string> = {
+          'a': '[aáàãâä]', 'e': '[eéèêë]', 'i': '[iíìîï]',
+          'o': '[oóòõôö]', 'u': '[uúùûü]', 'c': '[cç]', 'n': '[nñ]',
+        }
+        const pattern = search.toLowerCase().split('').map((ch: string) => {
+          if (accentMap[ch]) return accentMap[ch]
+          if (ch === ' ') return '%'
+          return ch
+        }).join('')
+        const ilikePattern = '%' + pattern + '%'
         
-        const students = await prisma.
-queryRaw<Array<{id: string, fullName: string, phone: string | null, email: string, source: string, isActive: boolean, createdAt: Date}>>`
+        const students = await prisma.$queryRaw<Array<{id: string, fullName: string, phone: string | null, email: string, source: string, isActive: boolean, createdAt: Date}>>`
           SELECT id, full_name as "fullName", phone, email, source, is_active as "isActive", created_at as "createdAt"
           FROM profiles
           WHERE org_id = ${orgId}
             AND role = 'STUDENT'
             AND is_active = true
-            AND (
-              unaccent(full_name) ILIKE ${'%' + normalizedSearch + '%'}
-              OR full_name ILIKE ${'%' + search + '%'}
-            )
+            AND full_name ILIKE ${ilikePattern}
           ORDER BY full_name ASC
           LIMIT 10
         `
