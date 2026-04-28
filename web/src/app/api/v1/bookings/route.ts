@@ -35,17 +35,14 @@ function getScheduleException(dateStr: string): { blocked: boolean; message: str
 }
 
 const CreateBookingSchema = z.object({
-  phone: z.string().min(8).max(30).optional(),
-  studentId: z.string().min(1).optional(),
+  studentId: z.string().min(1),
   name: z.string().min(1).max(200),
   serviceId: z.string().min(1),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
   time: z.string().regex(/^\d{2}:\d{2}$/, 'Time must be HH:MM'),
   trainerId: z.string().optional(),
   notes: z.string().max(500).optional(),
-}).refine(data => data.phone || data.studentId, {
-  message: 'Either phone or studentId is required',
-  path: ['phone'],
+  phone: z.string().min(8).max(30).optional(), // Ignorado — studentId é obrigatório
 });
 
 /**
@@ -258,39 +255,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Find or create student profile by phone or studentId
-    let student = null
-
-    if (studentId) {
-      // Direct lookup by student profile ID
-      student = await prisma.profile.findFirst({
-        where: { id: studentId, orgId, role: 'STUDENT' },
-      })
-    } else if (phone) {
-      student = await prisma.profile.findFirst({
-        where: { orgId, phone: { contains: phone.slice(-9) }, role: 'STUDENT' },
-      })
-    }
+    // Find student by studentId (required)
+    const student = await prisma.profile.findFirst({
+      where: { id: studentId, orgId, role: 'STUDENT' },
+    })
 
     if (!student) {
-      if (!phone) {
-        return NextResponse.json(
-          { error: 'Student not found and no phone provided to create one' },
-          { status: 404 }
-        )
-      }
-      // Create a minimal student profile (no Supabase auth — agent-created)
-      const placeholderUserId = `agent-${orgId}-${phone.replace(/\D/g, '')}`
-      student = await prisma.profile.create({
-        data: {
-          userId: placeholderUserId,
-          orgId,
-          role: 'STUDENT',
-          fullName: name,
-          phone,
-          email: `${phone.replace(/\D/g, '')}@whatsapp.fitflow`,
-        },
-      })
+      return NextResponse.json(
+        { error: 'Aluno não encontrado. Verifique o studentId.' },
+        { status: 404 }
+      )
     }
 
     // Resolve trainer info for confirmation message
