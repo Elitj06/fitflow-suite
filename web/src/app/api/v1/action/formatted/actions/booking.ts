@@ -24,6 +24,20 @@ interface BookParams {
   serviceId?: string
 }
 
+/**
+ * Create a booking and return formatted confirmation message.
+ *
+ * Validates date (no sundays), checks 1-booking-per-day rule,
+ * resolves available trainer in parallel, and creates the booking.
+ *
+ * @param orgId - Organization ID from API key context
+ * @param params.studentId - Student profile ID (required)
+ * @param params.name - Student full name (required)
+ * @param params.date - Date in YYYY-MM-DD format, BRT timezone (required)
+ * @param params.time - Time in HH:MM format, BRT timezone (required)
+ * @param params.serviceId - Service ID (default: Musculação)
+ * @returns ActionResult with formatted confirmation or error message
+ */
 export async function bookAction(orgId: string, params: BookParams): Promise<ActionResult> {
   const { studentId, name, date, time, serviceId = 'c19d318171d5ca8kywp1blvemz1h450p' } = params
 
@@ -128,6 +142,17 @@ export async function bookAction(orgId: string, params: BookParams): Promise<Act
   }
 }
 
+/**
+ * Cancel a booking and return formatted confirmation.
+ *
+ * Enforces cancellation window (warns if < 2h before start).
+ * Cannot cancel COMPLETED bookings.
+ *
+ * @param orgId - Organization ID
+ * @param bookingId - Booking ID to cancel
+ * @param studentName - Student name for the confirmation message
+ * @returns ActionResult with cancellation message
+ */
 export async function cancelAction(orgId: string, bookingId: string, studentName: string): Promise<ActionResult> {
   if (!bookingId) {
     return { text: '❌ Preciso do ID do agendamento para cancelar.', requiresModelFollowup: true }
@@ -171,6 +196,13 @@ export async function cancelAction(orgId: string, bookingId: string, studentName
   }
 }
 
+/**
+ * List all non-cancelled bookings for a given date, formatted as agenda.
+ *
+ * @param orgId - Organization ID
+ * @param date - Date in YYYY-MM-DD format
+ * @returns ActionResult with formatted agenda (✅ completed, 🔵 pending)
+ */
 export async function agendaAction(orgId: string, date: string): Promise<ActionResult> {
   const parsed = parseDate(date)
   if (!parsed) return { text: '❌ Data inválida.' }
@@ -205,6 +237,16 @@ export async function agendaAction(orgId: string, date: string): Promise<ActionR
   }
 }
 
+/**
+ * Show available time slots for a given date.
+ *
+ * Generates all possible slots based on day of week (weekday 06-21, sat 08-12),
+ * then subtracts slots with existing bookings.
+ *
+ * @param orgId - Organization ID
+ * @param date - Date in YYYY-MM-DD format
+ * @returns ActionResult with available slots list
+ */
 export async function availabilityAction(orgId: string, date: string): Promise<ActionResult> {
   const parsed = parseDate(date)
   if (!parsed) return { text: '❌ Data inválida.' }
@@ -245,6 +287,16 @@ export async function availabilityAction(orgId: string, date: string): Promise<A
   }
 }
 
+/**
+ * Search students by name (case-insensitive, contains).
+ *
+ * Returns up to 5 results. If multiple found, sets requiresModelFollowup=true
+ * so the agent asks the user to choose.
+ *
+ * @param orgId - Organization ID
+ * @param name - Search query (partial name accepted)
+ * @returns ActionResult with found student(s)
+ */
 export async function searchStudentAction(orgId: string, name: string): Promise<ActionResult> {
   if (!name) return { text: '❌ Preciso de um nome pra buscar.' }
 
