@@ -119,8 +119,14 @@ export async function GET() {
     const branchMap = Object.fromEntries(
       (branchesData.data || []).map((b: { id: string; name: string }) => [b.id, b.name])
     )
+    // Build trainer lookup from ALL profiles in the org (not just role=TRAINER)
+    // This includes ADMIN profiles that may have bookings (e.g. Rafael as ADMIN)
+    const { data: allOrgProfiles } = await supabase
+      .from('profiles')
+      .select('id, full_name')
+      .eq('org_id', orgId)
     const trainerMap = Object.fromEntries(
-      (bookingsByTrainer.data || []).map((t: { id: string; full_name: string }) => [t.id, t.full_name])
+      (allOrgProfiles || []).map((t: { id: string; full_name: string }) => [t.id, t.full_name])
     )
 
     // Process bookings for analytics
@@ -193,18 +199,23 @@ export async function GET() {
       branchCounts[b.branch_id].count++
     }
 
-    // Peak hours: group by hour
+    // Peak hours: group by BRT hour (UTC-3)
     const hourCounts: Record<number, number> = {}
     for (const b of bookings) {
-      const hour = new Date(b.starts_at).getHours()
-      hourCounts[hour] = (hourCounts[hour] || 0) + 1
+      // starts_at is stored in UTC; convert to BRT (UTC-3) for display
+      const utcHour = new Date(b.starts_at).getHours()
+      const brtHour = (utcHour - 3 + 24) % 24
+      hourCounts[brtHour] = (hourCounts[brtHour] || 0) + 1
     }
 
-    // Weekly frequency
+    // Weekly frequency (by BRT day of week)
     const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
     const weeklyFrequency = dayNames.map(day => ({ day, value: 0 }))
     for (const b of bookings) {
-      const dow = new Date(b.starts_at).getDay()
+      // Convert UTC starts_at to BRT to get correct day of week
+      const utcDate = new Date(b.starts_at)
+      const brtDate = new Date(utcDate.getTime() - 3 * 60 * 60 * 1000)
+      const dow = brtDate.getUTCDay()
       weeklyFrequency[dow].value++
     }
 
