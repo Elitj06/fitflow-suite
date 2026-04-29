@@ -258,14 +258,18 @@ export async function POST(request: NextRequest) {
       select: { fullName: true },
     })
 
-    // Check if student already has a booking on this date (1 per day)
+    // Check if student already has a booking on this LOCAL date (1 per day in BRT)
+    // Use the original `date` string to build a UTC day-range that covers the full BRT day
+    // BRT day 2026-05-09 starts at 2026-05-09T03:00Z and ends at 2026-05-10T03:00Z
+    const [yr, mo, dy] = date.split('-').map(Number)
+    const dayStartUtc = new Date(Date.UTC(yr, mo - 1, dy, 3, 0, 0))  // 00:00 BRT = 03:00 UTC
+    const dayEndUtc = new Date(Date.UTC(yr, mo - 1, dy + 1, 3, 0, 0))  // next day 00:00 BRT
     const existingBooking = await prisma.booking.findFirst({
       where: {
         orgId,
         studentId: student.id,
         status: { in: ['PENDING', 'CONFIRMED'] },
-        startsAt: { gte: new Date(startsAt.getFullYear(), startsAt.getMonth(), startsAt.getDate()) },
-        endsAt: { lt: new Date(startsAt.getFullYear(), startsAt.getMonth(), startsAt.getDate() + 1) },
+        startsAt: { gte: dayStartUtc, lt: dayEndUtc },
       },
     })
     if (existingBooking) {
