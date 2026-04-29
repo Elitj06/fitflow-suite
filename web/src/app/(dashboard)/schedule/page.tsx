@@ -127,13 +127,13 @@ export default function SchedulePage() {
         const list = Array.isArray(data) ? data : []
         console.log('[Search] Results:', list.length, 'students')
         // Sort by relevance: exact start-of-name match first, then alphabetical
-        const term = studentSearch.trim().toLowerCase()
+        const sortTerm = studentSearch.trim().toLowerCase()
         const sorted = list.map((s: any) => ({ id: s.id, fullName: s.fullName || '' }))
           .sort((a: StudentProfile, b: StudentProfile) => {
             const aName = a.fullName.toLowerCase()
             const bName = b.fullName.toLowerCase()
-            const aStarts = aName.startsWith(term) ? 0 : aName.includes(' ' + term) ? 1 : 2
-            const bStarts = bName.startsWith(term) ? 0 : bName.includes(' ' + term) ? 1 : 2
+            const aStarts = aName.startsWith(sortTerm) ? 0 : aName.includes(' ' + sortTerm) ? 1 : 2
+            const bStarts = bName.startsWith(sortTerm) ? 0 : bName.includes(' ' + sortTerm) ? 1 : 2
             if (aStarts !== bStarts) return aStarts - bStarts
             return aName.localeCompare(bName, 'pt-BR')
           })

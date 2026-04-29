@@ -25,14 +25,16 @@ export async function GET() {
 
     // Queries paralelas
     const [
-      activeStudents,
+      activeStudentsRes,
       bookings30d,
-      weekCheckins,
-      allCheckins,
-      topStudents,
+      weekCheckinsRes,
+      completedBookings30d,
+      bookingsPerStudent30d,
+      bookingsPerStudentWeek,
       servicesData,
       branchesData,
       bookingsByTrainer,
+      bookingsByStatus30d,
     ] = await Promise.all([
       // Total alunos ativos
       supabase
@@ -45,34 +47,43 @@ export async function GET() {
       // Agendamentos últimos 30 dias (não cancelados)
       supabase
         .from('bookings')
-        .select('id, trainer_id, branch_id, service_id, starts_at, status')
+        .select('id, student_id, trainer_id, branch_id, service_id, starts_at, status')
         .eq('org_id', orgId)
         .gte('starts_at', thirtyDaysAgo)
         .neq('status', 'CANCELLED'),
 
       // Check-ins desta semana
       supabase
-        .from('checkins')
+        .from('bookings')
         .select('id', { count: 'exact', head: true })
         .eq('org_id', orgId)
-        .gte('created_at', startOfWeek),
+        .eq('status', 'COMPLETED')
+        .gte('starts_at', startOfWeek)
+        .neq('status', 'CANCELLED'),
 
-      // All checkins (for presence rate)
+      // Completed bookings (proxy for checkins) last 30d
       supabase
-        .from('checkins')
+        .from('bookings')
         .select('id', { count: 'exact', head: true })
         .eq('org_id', orgId)
-        .gte('created_at', thirtyDaysAgo),
+        .eq('status', 'COMPLETED')
+        .gte('starts_at', thirtyDaysAgo),
 
-      // Top 5 alunos por coins_balance (proxy para mais frequentes)
+      // Top alunos por agendamentos (real data, not coins)
       supabase
-        .from('profiles')
-        .select('full_name, coins_balance')
+        .from('bookings')
+        .select('student_id')
         .eq('org_id', orgId)
-        .eq('role', 'STUDENT')
-        .eq('is_active', true)
-        .order('coins_balance', { ascending: false })
-        .limit(5),
+        .neq('status', 'CANCELLED')
+        .gte('starts_at', thirtyDaysAgo),
+
+      // This week bookings for weekly frequency
+      supabase
+        .from('bookings')
+        .select('student_id')
+        .eq('org_id', orgId)
+        .eq('status', 'COMPLETED')
+        .gte('starts_at', startOfWeek),
 
       // Services
       supabase
@@ -92,6 +103,13 @@ export async function GET() {
         .select('id, full_name')
         .eq('org_id', orgId)
         .eq('role', 'TRAINER'),
+
+      // Bookings grouped by status for status breakdown
+      supabase
+        .from('bookings')
+        .select('status')
+        .eq('org_id', orgId)
+        .gte('starts_at', thirtyDaysAgo),
     ])
 
     // Build lookup maps
@@ -108,12 +126,42 @@ export async function GET() {
     // Process bookings for analytics
     const bookings = bookings30d.data || []
     const totalBookings = bookings.length
-    const totalCheckins = allCheckins.count || 0
+    const completedBookings = completedBookings30d.count || 0
+    const weekCompletedBookings = weekCheckinsRes.count || 0
 
-    // Presence rate: checkins / bookings in last 30d
+    // Presence rate: completed / total bookings in last 30d
     const presenceRate = totalBookings > 0
-      ? Math.round((totalCheckins / totalBookings) * 100)
+      ? Math.round((completedBookings / totalBookings) * 100)
       : 0
+
+    // Status breakdown
+    const statusCounts: Record<string, number> = {}
+    for (const b of (bookingsByStatus30d.data || [])) {
+      statusCounts[b.status] = (statusCounts[b.status] || 0) + 1
+    }
+
+    // Top students by booking count (real data)
+    const studentBookingCounts: Record<string, number> = {}
+    for (const b of (bookingsPerStudent30d.data || [])) {
+      studentBookingCounts[b.student_id] = (studentBookingCounts[b.student_id] || 0) + 1
+    }
+
+    // Get top 5 student names
+    const topStudentIds = Object.entries(studentBookingCounts)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 5)
+      .map(([id]) => id)
+
+    const { data: topStudentProfiles } = topStudentIds.length > 0
+      ? await supabase
+          .from('profiles')
+          .select('id, full_name')
+          .in('id', topStudentIds)
+      : { data: [] as { id: string; full_name: string }[] | null }
+
+    const topStudentMap = Object.fromEntries(
+      (topStudentProfiles || []).map((s: { id: string; full_name: string }) => [s.id, s.full_name])
+    )
 
     // Bookings by service
     const serviceCounts: Record<string, { name: string; count: number }> = {}
@@ -161,15 +209,16 @@ export async function GET() {
     }
 
     return NextResponse.json({
-      activeStudents: activeStudents.count || 0,
+      activeStudents: activeStudentsRes.count || 0,
       bookings30d: totalBookings,
-      weekCheckins: weekCheckins.count || 0,
+      weekCheckins: weekCompletedBookings,
       presenceRate,
       monthRevenue: 0,
-      topStudents: (topStudents.data || []).map((s: { full_name: string; coins_balance: number }) => ({
-        name: s.full_name,
-        checkins: s.coins_balance || 0,
-        streak: Math.floor((s.coins_balance || 0) / 3),
+      statusBreakdown: statusCounts,
+      topStudents: topStudentIds.map(id => ({
+        name: topStudentMap[id] || 'Desconhecido',
+        checkins: studentBookingCounts[id] || 0,
+        streak: Math.floor((studentBookingCounts[id] || 0) / 3),
       })),
       weeklyFrequency,
       services: Object.values(serviceCounts)

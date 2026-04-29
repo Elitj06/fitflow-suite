@@ -14,6 +14,7 @@ interface AnalyticsData {
   weekCheckins: number
   presenceRate: number
   monthRevenue: number
+  statusBreakdown: Record<string, number>
   topStudents: { name: string; checkins: number; streak: number }[]
   weeklyFrequency: { day: string; value: number }[]
   services: { name: string; count: number }[]
@@ -331,8 +332,8 @@ export default function AnalyticsPage() {
                   <p className="text-sm font-medium text-gray-900 dark:text-white">{s.name}</p>
                 </div>
                 <div className="flex items-center gap-6 text-sm">
-                  <span className="text-gray-600 dark:text-gray-400">{s.checkins} FitCoins</span>
-                  <span className="text-orange-500 font-semibold">🔥 {s.streak} sequência</span>
+                  <span className="text-gray-600 dark:text-gray-400">{s.checkins} aulas</span>
+                  <span className="text-orange-500 font-semibold">🔥 {s.streak} sem</span>
                 </div>
               </div>
             ))}
