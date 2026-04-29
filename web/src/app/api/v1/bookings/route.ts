@@ -279,6 +279,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Resolve branch: use the first active branch as default if not specified
+    let branchId: string | undefined
+    const defaultBranch = await prisma.branch.findFirst({
+      where: { orgId, isActive: true },
+      select: { id: true },
+    })
+    if (defaultBranch) branchId = defaultBranch.id
+
     // Create the booking
     const booking = await prisma.booking.create({
       data: {
@@ -291,6 +299,7 @@ export async function POST(request: NextRequest) {
         status: 'CONFIRMED',
         source: 'WHATSAPP',
         notes,
+        branchId,
       },
     })
 

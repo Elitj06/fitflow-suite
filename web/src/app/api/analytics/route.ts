@@ -212,7 +212,7 @@ export async function GET() {
     // Bookings by branch
     const branchCounts: Record<string, { name: string; count: number }> = {}
     for (const b of bookings) {
-      const name = branchMap[b.branch_id] || 'Desconhecido'
+      const name = branchMap[b.branch_id] || (b.branch_id ? 'Desconhecido' : 'Sem unidade')
       if (!branchCounts[b.branch_id]) {
         branchCounts[b.branch_id] = { name, count: 0 }
       }
