@@ -126,7 +126,18 @@ export default function SchedulePage() {
         const data = await res.json()
         const list = Array.isArray(data) ? data : []
         console.log('[Search] Results:', list.length, 'students')
-        setSearchResults(list.map((s: any) => ({ id: s.id, fullName: s.fullName || '' })))
+        // Sort by relevance: exact start-of-name match first, then alphabetical
+        const term = studentSearch.trim().toLowerCase()
+        const sorted = list.map((s: any) => ({ id: s.id, fullName: s.fullName || '' }))
+          .sort((a: StudentProfile, b: StudentProfile) => {
+            const aName = a.fullName.toLowerCase()
+            const bName = b.fullName.toLowerCase()
+            const aStarts = aName.startsWith(term) ? 0 : aName.includes(' ' + term) ? 1 : 2
+            const bStarts = bName.startsWith(term) ? 0 : bName.includes(' ' + term) ? 1 : 2
+            if (aStarts !== bStarts) return aStarts - bStarts
+            return aName.localeCompare(bName, 'pt-BR')
+          })
+        setSearchResults(sorted)
       } catch (err: any) {
         if (err.name !== 'AbortError') {
           console.error('[Search] Fetch error:', err)

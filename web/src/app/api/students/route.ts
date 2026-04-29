@@ -66,12 +66,21 @@ export async function GET(request: NextRequest) {
       query = query.eq('source', 'direct')
     }
 
-    // Database-side search filter — applied BEFORE the query executes
+    // Database-side search filter — supports multi-word AND matching
+    // "Joao Silva" matches "Joao Pedro Silva" (both words present)
     if (isSearching) {
       const term = search.trim()
-      query = query.or(`full_name.ilike.%${term}%,email.ilike.%${term}%,phone.ilike.%${term}%`)
-      // When searching, limit to 100 results (search is precise, no need for more)
-      query = query.limit(100)
+      const words = term.split(/\s+/).filter(Boolean)
+      
+      if (words.length === 1) {
+        // Single word: match anywhere in name, email, or phone
+        query = query.or(`full_name.ilike.%${words[0]}%,email.ilike.%${words[0]}%,phone.ilike.%${words[0]}%`)
+      } else {
+        // Multiple words: search for ANY word in DB (OR), then AND-filter client-side
+        const orParts = words.map(w => `full_name.ilike.%${w}%`)
+        query = query.or(orParts.join(','))
+      }
+      query = query.limit(200)
     } else {
       query = query.limit(5000)
     }
@@ -83,10 +92,21 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Query failed' }, { status: 500 })
     }
 
+    // Client-side AND filter for multi-word searches
+    let filtered = students || []
+    if (isSearching) {
+      const words = search!.trim().split(/\s+/).filter(Boolean)
+      if (words.length > 1) {
+        filtered = filtered.filter((s: any) => {
+          const name = (s.full_name || '').toLowerCase()
+          return words.every(w => name.includes(w.toLowerCase()))
+        })
+      }
+    }
+
     // TRAINER role: restrict to students with existing bookings
     // BUT: when actively searching, show ALL org students so trainer
     //       can find and book students they haven't worked with yet
-    let filtered = students || []
     if (profile.role === 'TRAINER' && !isSearching) {
       const trainerId = profile.id
       const { data: trainerBookings } = await supabase
