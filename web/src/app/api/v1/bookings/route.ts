@@ -147,40 +147,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No trainer available for this service' }, { status: 422 })
     }
 
-    // Parse date and time into a full datetime
-    // FIX: Usar Intl para resolver o offset correto de America/Sao_Paulo
-    // incluindo horário de verão automaticamente
+    // Parse date and time into a full datetime in America/Sao_Paulo
+    // BRT is always UTC-3 (Brazil abolished DST in 2019)
     const [year, month, day] = date.split('-').map(Number)
     const [hour, minute] = time.split(':').map(Number)
 
-    // Criar a data como local em São Paulo usando o formato ISO
-    // e deixar o runtime resolver o offset correto (incluindo DST)
-    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`
-
-    // Calcular o offset real de São Paulo para esta data específica
-    const tempDate = new Date(dateStr + 'Z') // UTC temporário
-    const spFormatter = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'America/Sao_Paulo',
-      year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', second: '2-digit',
-      hour12: false,
-    })
-    const spParts = spFormatter.formatToParts(tempDate)
-    const spHour = parseInt(spParts.find(p => p.type === 'hour')?.value || '0')
-    const utcHour = tempDate.getUTCHours()
-    const offsetHours = spHour - utcHour
-    // O offset real é a diferença; para converter SP->UTC, subtraímos o offset
-    const startsAt = new Date(Date.UTC(year, month - 1, day, hour - offsetHours, minute))
-    const endsAt = new Date(startsAt.getTime() + service.durationMinutes * 60000)
-
-    // Block Sunday bookings — studio is closed
-    const dayOfWeek = startsAt.getUTCDay() // 0=Sunday
-    if (dayOfWeek === 0) {
+    // Check day of week using LOCAL date (before converting to UTC)
+    // This avoids the bug where Friday 21h BRT becomes Saturday 00h UTC
+    const localDate = new Date(year, month - 1, day)
+    const localDayOfWeek = localDate.getDay() // 0=Sunday, using local date
+    if (localDayOfWeek === 0) {
       return NextResponse.json(
         { error: 'O estúdio não funciona aos domingos. Escolha outro dia.' },
         { status: 422 }
       )
     }
+
+    // BRT = UTC-3 (no DST in Brazil since 2019)
+    const startsAt = new Date(Date.UTC(year, month - 1, day, hour + 3, minute))
+    const endsAt = new Date(startsAt.getTime() + service.durationMinutes * 60000)
 
     // Check schedule exceptions (holidays / special hours)
     const exception = getScheduleException(date)
