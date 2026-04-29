@@ -121,13 +121,33 @@ export async function GET() {
     )
     // Build trainer lookup from ALL profiles in the org (not just role=TRAINER)
     // This includes ADMIN profiles that may have bookings (e.g. Rafael as ADMIN)
+    // Strategy: collect unique trainer_ids from bookings, then fetch their profiles
+    const uniqueTrainerIds = [...new Set(bookings.map((b: { trainer_id: string | null }) => b.trainer_id).filter(Boolean))] as string[]
+    let trainerMap: Record<string, string> = {}
+    
+    if (uniqueTrainerIds.length > 0) {
+      const { data: trainerProfiles } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .in('id', uniqueTrainerIds)
+      
+      trainerMap = Object.fromEntries(
+        (trainerProfiles || []).map((t: { id: string; full_name: string }) => [t.id, t.full_name])
+      )
+    }
+    
+    // Also fetch ALL org profiles as fallback (includes names for non-trainer profiles)
     const { data: allOrgProfiles } = await supabase
       .from('profiles')
       .select('id, full_name')
       .eq('org_id', orgId)
-    const trainerMap = Object.fromEntries(
-      (allOrgProfiles || []).map((t: { id: string; full_name: string }) => [t.id, t.full_name])
-    )
+    
+    // Merge: specific trainer lookup takes priority, org profiles as fallback
+    for (const t of (allOrgProfiles || []) as { id: string; full_name: string }[]) {
+      if (!trainerMap[t.id]) {
+        trainerMap[t.id] = t.full_name
+      }
+    }
 
     // Process bookings for analytics
     const bookings = bookings30d.data || []
