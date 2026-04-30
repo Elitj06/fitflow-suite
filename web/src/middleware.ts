@@ -28,7 +28,12 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  // Use getSession() which handles token refresh automatically,
+  // then getUser() to validate the session server-side.
+  const { data: { session } } = await supabase.auth.getSession()
+  const { data: { user } } = session
+    ? await supabase.auth.getUser(session.access_token)
+    : { data: { user: null as null } }
   const pathname = request.nextUrl.pathname
 
   // Always allow auth callback and onboarding
