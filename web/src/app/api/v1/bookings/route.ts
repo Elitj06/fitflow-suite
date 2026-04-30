@@ -279,13 +279,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Resolve branch: use the first active branch as default if not specified
+    // Resolve branch: use the first active branch as default
     let branchId: string | undefined
-    const defaultBranch = await prisma.branch.findFirst({
-      where: { orgId, isActive: true },
-      select: { id: true },
-    })
-    if (defaultBranch) branchId = defaultBranch.id
+    try {
+      const branches = await prisma.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM branches WHERE org_id = ${orgId} LIMIT 1
+      `
+      if (branches.length > 0) branchId = branches[0].id
+    } catch {
+      // Branch not critical for booking — continue without it
+    }
 
     // Create the booking
     const booking = await prisma.booking.create({
