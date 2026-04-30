@@ -101,7 +101,7 @@ export default function TrainerDashboard() {
     <div className="space-y-6">
       <div>
         <h1 className="font-display text-2xl font-bold text-gray-900 dark:text-white">{greeting}, {firstName}! 👋</h1>
-        <p className="mt-1 text-gray-500">
+        <p className="mt-1 text-gray-600 dark:text-gray-300">
           {stats ? `Voce tem ${stats.bookings.today} aula${stats.bookings.today !== 1 ? 's' : ''} hoje.` : 'Bem-vindo ao painel.'}
         </p>
       </div>
@@ -128,21 +128,21 @@ export default function TrainerDashboard() {
               </div>
             ) : upcoming.map((b) => {
               const cfgMap: Record<string, {label: string; color: string; icon: React.ElementType}> = {
-                CONFIRMED: { label: 'Confirmado', color: 'bg-blue-100 text-blue-700', icon: Clock },
-                PENDING: { label: 'Pendente', color: 'bg-amber-100 text-amber-700', icon: Clock },
-                COMPLETED: { label: 'Check-in', color: 'bg-green-100 text-green-700', icon: CheckCircle2 },
+                CONFIRMED: { label: 'Confirmado', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300', icon: Clock },
+                PENDING: { label: 'Pendente', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300', icon: Clock },
+                COMPLETED: { label: 'Check-in', color: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300', icon: CheckCircle2 },
               }
               const cfg = cfgMap[b.status] || cfgMap.PENDING
               const StatusIcon = cfg.icon
               return (
-                <div key={b.id} className="flex items-center gap-4 rounded-xl border border-gray-100 bg-gray-50/50 p-4">
-                  <div className="font-display text-base font-bold text-gray-900 w-12 text-center flex-shrink-0">
+                <div key={b.id} className="flex items-center gap-4 rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800 p-4">
+                  <div className="font-display text-base font-bold text-gray-900 dark:text-white w-12 text-center flex-shrink-0">
                     {new Date(b.startsAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                   </div>
-                  <div className="h-10 w-px bg-gray-200 flex-shrink-0" />
+                  <div className="h-10 w-px bg-gray-200 dark:bg-gray-600 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <div className="font-medium text-gray-900 truncate">{b.student.fullName}</div>
-                    <div className="text-sm text-gray-500 truncate">{b.service.name}</div>
+                    <div className="font-medium text-gray-900 dark:text-white truncate">{b.student.fullName}</div>
+                    <div className="text-sm text-gray-600 dark:text-gray-300 truncate">{b.service.name}</div>
                   </div>
                   <div className={'flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold flex-shrink-0 ' + cfg.color}>
                     <StatusIcon className="h-3 w-3" />{cfg.label}
