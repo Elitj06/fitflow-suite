@@ -122,7 +122,8 @@ export async function GET() {
     // Build trainer lookup from ALL profiles in the org (not just role=TRAINER)
     // This includes ADMIN profiles that may have bookings (e.g. Rafael as ADMIN)
     // Strategy: collect unique trainer_ids from bookings, then fetch their profiles
-    const uniqueTrainerIds = [...new Set(bookings.map((b: { trainer_id: string | null }) => b.trainer_id).filter(Boolean))] as string[]
+    const rawBookings = bookings30d.data || []
+    const uniqueTrainerIds = [...new Set(rawBookings.map((b: { trainer_id: string | null }) => b.trainer_id).filter(Boolean))] as string[]
     let trainerMap: Record<string, string> = {}
     
     if (uniqueTrainerIds.length > 0) {
@@ -150,7 +151,7 @@ export async function GET() {
     }
 
     // Process bookings for analytics
-    const bookings = bookings30d.data || []
+    const bookings = rawBookings
     const totalBookings = bookings.length
     const completedBookings = completedBookings30d.count || 0
     const weekCompletedBookings = weekCheckinsRes.count || 0
